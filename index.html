@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BizDev & Collaboration Hub</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- Supabase JS Client from CDN (commented out for now) -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> -->
+</head>
+<body>
+
+    <div class="container">
+        <h1>BizDev & Collaboration Hub</h1>
+
+        <div class="tabs">
+            <button class="tab-button active" data-tab="bizdev">BizDev Overview</button>
+            <button class="tab-button" data-tab="ian-collab">Ian Collaboration Focus</button>
+        </div>
+
+        <!-- Add New Project Modal -->
+        <div id="addProjectModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Add New Project</h2>
+                    <span class="close-btn" onclick="closeModal('addProjectModal')">×</span>
+                </div>
+                <form id="addProjectForm">
+                    <div class="form-group">
+                        <label for="newProjectName">Project Name</label>
+                        <input type="text" id="newProjectName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newProjectDescription">Description</label>
+                        <textarea id="newProjectDescription"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="newProjectRating">Overall Rating (0.0 - 5.0)</label>
+                        <input type="number" id="newProjectRating" step="0.1" min="0" max="5" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newProjectPriority">Priority</label>
+                        <select id="newProjectPriority">
+                            <option value="high">High</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="newProjectStatus">Status</label>
+                        <select id="newProjectStatus">
+                            <option value="potential" selected>Potential</option>
+                            <option value="active">Active</option>
+                            <option value="on-hold">On Hold</option>
+                            <option value="completed">Completed</option>
+                            <option value="archived">Archived</option>
+                        </select>
+                    </div>
+                     <div class="form-group">
+                        <label style="display:inline-block; margin-right: 10px;" for="newProjectIanCollab">Ian Collaboration Project?</label>
+                        <input type="checkbox" id="newProjectIanCollab" style="width:auto;">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('addProjectModal')">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Project</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+
+        <div id="bizdev" class="tab-content active">
+            <div class="list-controls">
+                <button class="btn btn-primary" onclick="openModal('addProjectModal')">+ Add Project</button>
+                <div class="filter-controls">
+                    <input type="checkbox" id="showIanCollabToggle" checked>
+                    <label for="showIanCollabToggle">Show Ian's Collaboration Projects</label>
+                </div>
+                <div class="sort-controls">
+                    <label for="sort-bizdev">Sort by:</label>
+                    <select id="sort-bizdev" data-list-id="bizdev-project-list" data-source="bizdev">
+                        <option value="rating_desc">Rating (High-Low)</option>
+                        <option value="rating_asc">Rating (Low-High)</option>
+                        <option value="priority">Priority</option>
+                        <option value="status">Status</option>
+                        <option value="name_asc">Name (A-Z)</option>
+                        <option value="name_desc">Name (Z-A)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="project-list-header">
+                <div>Name</div>
+                <div>Rating</div>
+                <div>Priority</div>
+                <div>Status</div>
+                <div></div> <!-- For expand icon -->
+            </div>
+            <div class="project-list" id="bizdev-project-list">
+                <!-- BizDev projects will be rendered here by JS -->
+            </div>
+        </div>
+
+        <div id="ian-collab" class="tab-content">
+             <div class="list-controls">
+                <h2>Ian & JS Collaboration Tasks</h2>
+                <div class="sort-controls">
+                    <label for="sort-ian">Sort by:</label>
+                    <select id="sort-ian" data-list-id="ian-collab-project-list" data-source="ian">
+                         <option value="rating_desc">Rating (High-Low)</option>
+                        <option value="rating_asc">Rating (Low-High)</option>
+                        <option value="priority">Priority</option>
+                        <option value="status">Status</option>
+                        <option value="name_asc">Name (A-Z)</option>
+                        <option value="name_desc">Name (Z-A)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="project-list-header">
+                <div>Name</div>
+                <div>Rating</div>
+                <div>Priority</div>
+                <div>Status</div>
+                <div></div> <!-- For expand icon -->
+            </div>
+            <div class="project-list" id="ian-collab-project-list">
+                <!-- Ian Collaboration projects will be rendered here by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript files -->
+    <script src="js/supabase.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/tasks.js"></script>
+    <script src="js/projects.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html> 
