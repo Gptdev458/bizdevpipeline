@@ -35,7 +35,16 @@
     </script>
 </head>
 <body>
-    <div class="container">
+    <div id="login-overlay">
+        <div id="login-form">
+            <h2>Login</h2>
+            <input type="password" id="password-input" placeholder="Password">
+            <button id="login-button">Enter</button>
+            <p id="login-error"></p>
+        </div>
+    </div>
+
+    <div class="container" id="app-content" style="display:none;">
         <h1>BizDev & Collaboration Hub</h1>
 
         <div class="tabs">
@@ -169,6 +178,7 @@
         </div>
     </div>
 
+    <script type="module" src="js/auth.js"></script> 
     <script type="module" src="js/app.js"></script>
 </body>
 </html> 
