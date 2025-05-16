@@ -635,8 +635,7 @@ h2 { margin-bottom: 15px; }
 .task-list-bizdev li {
     padding: 8px 0;
     border-bottom: 1px solid #f0f0f0;
-    display: flex;
-    align-items: center;
+    display: block; /* Ensure vertical stacking of direct children */
 }
 
 .task-list-bizdev li:last-child {
@@ -655,6 +654,10 @@ h2 { margin-bottom: 15px; }
     flex-grow: 1;
     font-size: 0.95em;
     line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0; /* Allow shrinking beyond content size */
 }
 
 .task-list-bizdev li.completed label {
@@ -762,8 +765,7 @@ h2 { margin-bottom: 15px; }
 .task-list-bizdev li {
     padding: 8px 0;
     border-bottom: 1px solid #f0f0f0;
-    display: flex;
-    align-items: center;
+    display: block; /* Ensure vertical stacking of direct children */
 }
 
 .task-list-bizdev li:last-child {
@@ -777,6 +779,10 @@ h2 { margin-bottom: 15px; }
 .task-list-bizdev label {
     flex-grow: 1;
     cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0; /* Allow shrinking beyond content size */
 }
 
 .task-list-bizdev li.completed label {

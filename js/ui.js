@@ -139,7 +139,7 @@ async function renderTasks(tasks, taskListEl, projectId, parentId = null, level 
 
             // Add Subtask Button
             const addSubtaskBtn = document.createElement('button');
-            addSubtaskBtn.textContent = '+ Subtask';
+            addSubtaskBtn.textContent = '+';
             addSubtaskBtn.className = 'btn btn-secondary btn-xs add-subtask-button';
             taskContentWrapper.appendChild(addSubtaskBtn);
 
