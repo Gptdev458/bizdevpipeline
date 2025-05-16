@@ -1038,4 +1038,25 @@ h2 { margin-bottom: 15px; }
     margin-top: 15px;
     min-height: 1.2em; /* Reserve space to prevent layout shift */
     font-size: 0.9em;
+}
+
+/* Styles for Description Pane */
+.project-description-editor .project-description-textarea {
+    width: 100%;
+    min-height: 150px; /* Adjust as needed */
+    padding: 10px;
+    border: 1px solid var(--medium-gray);
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-bottom: 10px; /* Space before the save button */
+    font-family: inherit; /* Inherit font from body/container */
+    font-size: 0.95em; /* Slightly smaller or match general text */
+    resize: vertical; /* Allow vertical resizing */
+}
+
+.project-description-editor .save-description-button {
+    /* .btn .btn-primary .btn-sm are already defined and should apply well */
+    /* Add any specific margin if needed, e.g., display block and margin-top */
+    display: block; /* Make it a block to take full width or allow margin auto */
+    margin-left: auto; /* Align to the right */
 } 

@@ -724,6 +724,7 @@ function createProjectDetails(project, projectCard) {
 
         const buttonsInfo = [ // Renamed from 'buttons' to avoid conflict if any local var named 'buttons'
             { id: 'tasks', text: 'Tasks', paneId: 'tasks-pane-' + project.id, alwaysVisible: true },
+            { id: 'description', text: 'Description', paneId: 'description-pane-' + project.id, alwaysVisible: true },
             { id: 'detailed-ratings', text: 'Detailed Ratings', paneId: 'detailed-ratings-pane-' + project.id, alwaysVisible: false }, // Renamed from 'insights'
             { id: 'settings', text: 'Settings', paneId: 'settings-pane-' + project.id, alwaysVisible: true }
         ];
@@ -732,7 +733,8 @@ function createProjectDetails(project, projectCard) {
         const panesContainer = document.createElement('div');
         panesContainer.className = 'project-details-panes'; // A wrapper for all panes
 
-        buttonsInfo.forEach((btnInfo, index) => {
+        let firstVisibleButton = null;
+        buttonsInfo.forEach((btnInfo) => {
             if (!btnInfo.alwaysVisible && project.isIanCollaboration) {
                 return; // Skip creating this tab for collab projects if not alwaysVisible
             }
@@ -741,25 +743,27 @@ function createProjectDetails(project, projectCard) {
             button.className = 'details-nav-button';
             button.textContent = btnInfo.text;
             button.dataset.paneTarget = btnInfo.paneId;
-            if (index === 0) button.classList.add('active'); // Tasks active by default
             nav.appendChild(button);
+
+            if (!firstVisibleButton) {
+                firstVisibleButton = button; // Store the first button that is actually added
+            }
 
             const pane = document.createElement('div');
             pane.className = 'details-tab-pane';
             pane.id = btnInfo.paneId;
-            // Ensure the first *visible* tab and pane are active
-            if (nav.querySelectorAll('.details-nav-button').length === 1) { // If this is the first button being added
-                 button.classList.add('active');
-                 pane.classList.add('active-pane');
-            } else if (index === 0 && !project.isIanCollaboration) { // Default to tasks if not collab and tasks is first
-                 pane.classList.add('active-pane');
-            } else if (index !== 0 && project.isIanCollaboration && btnInfo.id === 'tasks') { // If collab, and this is tasks (which will be first visible)
-                 button.classList.add('active');
-                 pane.classList.add('active-pane');
-            }
-
             panesContainer.appendChild(pane);
         });
+        
+        // Activate the first visible tab and pane
+        if (firstVisibleButton) {
+            firstVisibleButton.classList.add('active');
+            const firstPaneId = firstVisibleButton.dataset.paneTarget;
+            const firstPane = panesContainer.querySelector('#' + firstPaneId);
+            if (firstPane) {
+                firstPane.classList.add('active-pane');
+            }
+        }
 
         detailsWrapper.appendChild(nav);
         detailsWrapper.appendChild(panesContainer);
@@ -843,6 +847,42 @@ function createProjectDetails(project, projectCard) {
                         }
                     });
             }
+        }
+
+        // NEW: Description Pane
+        const descriptionPane = panesContainer.querySelector('#description-pane-' + project.id);
+        if (descriptionPane) {
+            const descriptionContainer = document.createElement('div');
+            descriptionContainer.className = 'project-description-editor project-detail-item';
+            
+            const descriptionTitle = document.createElement('h3');
+            descriptionTitle.textContent = 'Project Description';
+            descriptionContainer.appendChild(descriptionTitle);
+
+            const descriptionTextarea = document.createElement('textarea');
+            descriptionTextarea.className = 'project-description-textarea'; // Add a class for styling
+            descriptionTextarea.value = project.description || '';
+            descriptionTextarea.placeholder = 'Enter project description...';
+            descriptionContainer.appendChild(descriptionTextarea);
+
+            const saveDescriptionButton = document.createElement('button');
+            saveDescriptionButton.textContent = 'Save Description';
+            saveDescriptionButton.className = 'btn btn-primary btn-sm save-description-button'; // Add class for styling/spacing
+            descriptionContainer.appendChild(saveDescriptionButton);
+
+            saveDescriptionButton.addEventListener('click', async () => {
+                const newDescription = descriptionTextarea.value.trim();
+                try {
+                    showStatus('Saving description...', false);
+                    await projectService.updateProject(project.id, { description: newDescription });
+                    project.description = newDescription; // Update local project object
+                    showStatus('Description updated successfully!', false);
+                } catch (error) {
+                    console.error('Error updating project description:', error);
+                    showStatus('Failed to update description: ' + (error.message || 'Unknown error'), true);
+                }
+            });
+            descriptionPane.appendChild(descriptionContainer);
         }
 
         // 4. Detailed Ratings Pane (formerly Insights)
