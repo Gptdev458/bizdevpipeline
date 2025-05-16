@@ -29,6 +29,19 @@ function getStatusClass(status) {
     return `status-${status.toLowerCase().replace(' ', '-')}`; 
 }
 
+// Helper function to close all custom selects except the current one
+function closeAllCustomSelects(currentOptionsContainer = null) {
+    const allOptionsContainers = document.querySelectorAll('.custom-select-options');
+    allOptionsContainers.forEach(container => {
+        if (container !== currentOptionsContainer) {
+            container.style.display = 'none';
+            // Note: This simplified version does not remove document event listeners 
+            // that might have been added by other dropdowns. A more robust solution 
+            // might involve a single global click listener or better state management for open dropdowns.
+        }
+    });
+}
+
 // Debug utility function to diagnose DOM node issues
 function debugDomIssues(container, projectId) {
     try {
@@ -71,73 +84,179 @@ function debugDomIssues(container, projectId) {
 }
 
 // Rendering Functions
-function renderTasks(tasks, taskListEl, projectId) {
-    console.log(`[renderTasks] Called for projectId: ${projectId}. taskListEl connected: ${taskListEl?.isConnected}. Tasks received:`, tasks);
-    try {
-        // First clear the list, including any loading indicators
-        if (taskListEl && taskListEl.isConnected) {
-            taskListEl.innerHTML = ''; 
-        } else {
-            console.error('[renderTasks] taskListEl is null or not connected before clearing.');
-            return; // Cannot proceed
+async function renderTasks(tasks, taskListEl, projectId, parentId = null, level = 0) {
+    // console.log(`[renderTasks] Called for projectId: ${projectId}, parentId: ${parentId}, level: ${level}. taskListEl connected: ${taskListEl?.isConnected}. Tasks received:`, tasks);
+    
+    if (!taskListEl || !taskListEl.isConnected) {
+        console.error('[renderTasks] taskListEl is null or not connected. Cannot render tasks.');
+        return;
+    }
+    
+    // Clear only if it's the top-level call for this specific list element, to avoid clearing sub-lists being repopulated.
+    // For sub-task refreshes, the specific sub-list UL will be cleared before rendering into it.
+    if (level === 0) {
+        taskListEl.innerHTML = ''; 
+    }
+
+    if (!tasks || tasks.length === 0) {
+        if (level === 0) { // Only show "No tasks yet" for the main list
+            // console.log('[renderTasks] No tasks or empty tasks array for top level.');
+            taskListEl.innerHTML = '<li><em>No tasks yet. Add one above!</em></li>';
         }
-        
-        // Handle empty tasks case
-        if (!tasks || tasks.length === 0) {
-            console.log('[renderTasks] No tasks or empty tasks array.');
-            taskListEl.innerHTML = '<li><em>No tasks yet.</em></li>';
-            return;
-        }
-        
-        console.log(`[renderTasks] Rendering ${tasks.length} tasks.`);
-        
-        // Create all task items
-        tasks.forEach(task => {
-            try {
-                const taskItem = document.createElement('li');
-                taskItem.className = task.completed ? 'completed' : '';
-                taskItem.dataset.taskId = task.id;
-
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.checked = task.completed;
-                checkbox.id = `task-${task.id}`;
-                checkbox.addEventListener('change', async (e) => {
-                    try {
-                        await taskService.updateTask(projectId, task.id, { completed: e.target.checked });
-                        taskItem.classList.toggle('completed', e.target.checked);
-                    } catch (error) {
-                        console.error('Error updating task completion:', error);
-                        // Revert UI change in case of error
-                        e.target.checked = !e.target.checked;
-                        alert('Failed to update task. Please try again.');
-                    }
-                });
-
-                const label = document.createElement('label');
-                label.setAttribute('for', `task-${task.id}`);
-                label.textContent = task.text || 'Unnamed Task';
-
-                // Add elements to the DOM
-                taskItem.appendChild(checkbox);
-                taskItem.appendChild(label);
-                if (taskListEl.isConnected) {
-                    taskListEl.appendChild(taskItem);
-                } else {
-                    console.error('Cannot append task item - taskListEl is not connected to DOM');
-                }
-            } catch (taskError) {
-                console.error('Error rendering task:', taskError);
-                // Skip this task but continue with others
-            }
-        });
-    } catch (error) {
-        console.error('Error in renderTasks:', error);
-        // Provide a fallback if rendering completely fails
+        return;
+    }
+    
+    // console.log(`[renderTasks] Rendering ${tasks.length} tasks for parent ${parentId} at level ${level}.`);
+    
+    for (const task of tasks) {
         try {
-            taskListEl.innerHTML = '<li><em>Error loading tasks.</em></li>';
-        } catch (fallbackError) {
-            console.error('Could not even render fallback message:', fallbackError);
+            const taskItem = document.createElement('li');
+            taskItem.className = task.completed ? 'completed' : '';
+            taskItem.dataset.taskId = task.id;
+            taskItem.style.marginLeft = `${level * 25}px`; // Indentation for subtasks
+
+            const taskContentWrapper = document.createElement('div');
+            taskContentWrapper.className = 'task-content-wrapper';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = task.completed;
+            checkbox.id = `task-${task.id}`;
+            checkbox.addEventListener('change', async (e) => {
+                try {
+                    await taskService.updateTask(projectId, task.id, { completed: e.target.checked });
+                    taskItem.classList.toggle('completed', e.target.checked);
+                } catch (error) {
+                    console.error('Error updating task completion:', error);
+                    e.target.checked = !e.target.checked; // Revert UI change
+                    showStatus('Failed to update task. Please try again.', true);
+                }
+            });
+
+            const label = document.createElement('label');
+            label.setAttribute('for', `task-${task.id}`);
+            label.textContent = task.text || 'Unnamed Task';
+
+            // Add Subtask Button
+            const addSubtaskBtn = document.createElement('button');
+            addSubtaskBtn.textContent = '+ Subtask';
+            addSubtaskBtn.className = 'btn btn-secondary btn-xs add-subtask-button';
+            taskContentWrapper.appendChild(addSubtaskBtn);
+
+            // Delete Task Button - Should be part of the taskContentWrapper
+            const deleteButton = document.createElement('button');
+            deleteButton.innerHTML = '&times;'; // Using a multiplication sign as an X icon
+            deleteButton.className = 'btn btn-danger btn-xs delete-task-button';
+            deleteButton.title = 'Delete task'; // Tooltip
+            taskContentWrapper.appendChild(deleteButton); // Append to the wrapper
+
+            taskItem.appendChild(taskContentWrapper); // Append the whole wrapper to taskItem
+
+            deleteButton.addEventListener('click', async (e) => {
+                e.stopPropagation(); // Prevent task row click or other parent events
+                if (confirm(`Are you sure you want to delete this task: "${task.text}"?\nThis action cannot be undone and will also delete all its subtasks.`)) {
+                    try {
+                        showStatus('Deleting task...', false);
+                        // We need to recursively delete subtasks from the UI if the backend doesn't cascade or for immediate UI update.
+                        // However, taskService.deleteTask should handle backend deletion including cascades if set up.
+                        // For UI, removing the parent taskItem is usually enough if subtasks are children in DOM.
+                        await taskService.deleteTask(projectId, task.id);
+                        taskItem.remove(); // Remove the task item from the DOM
+                        showStatus('Task and its subtasks deleted successfully!', false);
+                    } catch (error) {
+                        console.error('Error deleting task:', error);
+                        showStatus('Failed to delete task: ' + (error.message || 'Unknown error'), true);
+                    }
+                }
+            });
+
+            taskContentWrapper.appendChild(checkbox);
+            taskContentWrapper.appendChild(label);
+
+            // Subtask Form (initially hidden)
+            const subtaskForm = document.createElement('form');
+            subtaskForm.className = 'add-task-form subtask-form'; // Add subtask-form for specific styling
+            subtaskForm.style.display = 'none';
+            subtaskForm.style.marginLeft = '20px'; // Indent form slightly
+            subtaskForm.innerHTML = `
+                <input type="text" placeholder="New subtask..." required class="subtask-input">
+                <button type="submit" class="btn btn-primary btn-xs">Save</button>
+                <button type="button" class="btn btn-tertiary btn-xs cancel-subtask">Cancel</button>
+            `;
+            taskItem.appendChild(subtaskForm);
+
+            addSubtaskBtn.addEventListener('click', () => {
+                subtaskForm.style.display = subtaskForm.style.display === 'none' ? 'flex' : 'none';
+                if(subtaskForm.style.display === 'flex') {
+                    subtaskForm.querySelector('.subtask-input').focus();
+                }
+            });
+            subtaskForm.querySelector('.cancel-subtask').addEventListener('click', () => {
+                subtaskForm.style.display = 'none';
+                subtaskForm.reset();
+            });
+
+            const subtaskListEl = document.createElement('ul');
+            subtaskListEl.className = 'task-list-bizdev subtask-list'; // Add class for specific styling if needed
+            taskItem.appendChild(subtaskListEl);
+
+            subtaskForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const subtaskInput = subtaskForm.querySelector('.subtask-input');
+                const subtaskText = subtaskInput.value.trim();
+                if (subtaskText) {
+                    try {
+                        showStatus('Adding subtask...', false);
+                        await taskService.createTask(projectId, { text: subtaskText, completed: false, parentId: task.id });
+                        subtaskInput.value = '';
+                        subtaskForm.style.display = 'none';
+                        // Refresh this task's subtasks
+                        const updatedSubtasks = await taskService.getTasksByProjectId(projectId, task.id);
+                        subtaskListEl.innerHTML = ''; // Clear previous subtasks before re-rendering
+                        await renderTasks(updatedSubtasks, subtaskListEl, projectId, task.id, level + 1);
+                        showStatus('Subtask added successfully!', false);
+                    } catch (error) {
+                        console.error('Error adding subtask:', error);
+                        showStatus('Failed to add subtask: ' + (error.message || 'Unknown error'), true);
+                    }
+                }
+            });
+
+            if (taskListEl.isConnected) {
+                taskListEl.appendChild(taskItem);
+            } else {
+                console.error('Cannot append task item - taskListEl is not connected to DOM');
+                // return; // Stop if parent list detached
+            }
+
+            // Fetch and render subtasks for the current task
+            // Check if task.id exists, which it should for any existing task
+            if (task.id) { 
+                try {
+                    const subtasks = await taskService.getTasksByProjectId(projectId, task.id);
+                    if (subtasks && subtasks.length > 0) {
+                         // Ensure subtaskListEl is connected before rendering into it.
+                        if (subtaskListEl.isConnected) {
+                            await renderTasks(subtasks, subtaskListEl, projectId, task.id, level + 1);
+                        } else {
+                            console.warn(`Subtask list for task ${task.id} is not connected to DOM. Skipping subtask rendering.`);
+                        }
+                    }
+                } catch (fetchSubtasksError) {
+                    console.error(`Error fetching subtasks for task ${task.id}:`, fetchSubtasksError);
+                    if (subtaskListEl.isConnected) {
+                        subtaskListEl.innerHTML = '<li><em>Error loading subtasks.</em></li>';
+                    }
+                }
+            }
+
+        } catch (taskError) {
+            console.error('Error rendering a task item:', taskError, task);
+            // Potentially skip this task but continue with others
+            const errorLi = document.createElement('li');
+            errorLi.textContent = 'Error rendering this task.';
+            errorLi.style.color = 'red';
+            if (taskListEl.isConnected) taskListEl.appendChild(errorLi);
         }
     }
 }
@@ -164,19 +283,23 @@ function renderDetailedRatings(project, container) {
             effortPotentialClient: "Effort (Potential Client)", 
             effortExistingClient: "Effort (Existing Client)",
             timingPotentialClient: "Timing (Potential Client)"
+            // Runway is handled as a distinct key
         };
 
         for (const key in project.detailedRatingsData) {
-            const item = project.detailedRatingsData[key];
+            const itemValue = project.detailedRatingsData[key]; // Simplified: value is directly under key
             const div = document.createElement('div');
+            const itemValueOrNA = (itemValue === null || itemValue === undefined) ? 'N/A' : itemValue;
             
             if (key === 'runway') {
-                div.innerHTML = `<strong>Runway:</strong> <span>${item || 'N/A'} months</span>`;
-            } else if (item && typeof item.value !== 'undefined' && typeof item.weight !== 'undefined') {
-                div.innerHTML = `<strong>${ratingsMap[key] || key}:</strong> <span>${item.value === null ? 'N/A' : item.value}/5</span> (Weight: <span>${item.weight * 100}%</span>)`;
+                div.innerHTML = `<strong>Runway:</strong> <span>${itemValueOrNA}/5</span>`;
+            } else if (ratingsMap[key]) { // Check if it's a mapped criterion
+                div.innerHTML = `<strong>${ratingsMap[key]}:</strong> <span>${itemValueOrNA}/5</span>`;
             }
-            
-            grid.appendChild(div);
+            // Potentially skip unmapped keys or handle them differently if necessary
+            if (div.innerHTML) { // Only append if content was set
+                 grid.appendChild(div);
+            }
         }
         
         container.appendChild(grid);
@@ -190,6 +313,123 @@ function renderDetailedRatings(project, container) {
     }
 }
 
+// Function to populate and handle the edit detailed ratings form
+function populateEditRatingsForm(project, formDiv, viewDiv, editButton, projectCard) {
+    formDiv.innerHTML = ''; // Clear previous form content
+
+    const form = document.createElement('form');
+    form.className = 'edit-ratings-form'; 
+
+    const ratingsMap = {
+        revenuePotential: "Revenue Potential", 
+        insiderSupport: "Insider Support",
+        strategicFitEvolve: "Strategic Fit (Evolve)", 
+        strategicFitVerticals: "Strategic Fit (Verticals)",
+        clarityClient: "Clarity (Client)", 
+        clarityUs: "Clarity (Us)",
+        effortPotentialClient: "Effort (Potential Client)", 
+        effortExistingClient: "Effort (Existing Client)",
+        timingPotentialClient: "Timing (Potential Client)"
+        // Runway will be handled separately but also as a 1-5 rating
+    };
+
+    const currentRatings = project.detailedRatingsData || {};
+
+    for (const key in ratingsMap) {
+        const criterionDiv = document.createElement('div');
+        criterionDiv.className = 'rating-criterion form-group';
+
+        const label = document.createElement('label');
+        label.textContent = ratingsMap[key];
+        label.htmlFor = `rating-${key}-${project.id}`;
+        criterionDiv.appendChild(label);
+
+        const valueInput = document.createElement('input');
+        valueInput.type = 'number';
+        valueInput.id = `rating-${key}-${project.id}`;
+        valueInput.name = key; // MODIFIED: Name is just the key
+        valueInput.min = "1"; 
+        valueInput.max = "5"; 
+        valueInput.step = "0.5"; 
+        valueInput.value = currentRatings[key] !== undefined ? currentRatings[key] : '3'; 
+        criterionDiv.appendChild(valueInput);
+
+        form.appendChild(criterionDiv);
+    }
+
+    // Runway input as a 1-5 rating
+    const runwayDiv = document.createElement('div');
+    runwayDiv.className = 'rating-criterion form-group'; 
+    const runwayLabel = document.createElement('label');
+    runwayLabel.textContent = 'Runway (1-5 Rating)'; 
+    runwayLabel.htmlFor = `rating-runway-${project.id}`;
+    const runwayInput = document.createElement('input');
+    runwayInput.type = 'number';
+    runwayInput.id = `rating-runway-${project.id}`;
+    runwayInput.name = 'runway'; 
+    runwayInput.min = "1"; 
+    runwayInput.max = "5"; 
+    runwayInput.step = "0.5"; 
+    runwayInput.value = currentRatings.runway !== undefined ? currentRatings.runway : '3'; 
+    runwayDiv.appendChild(runwayLabel);
+    runwayDiv.appendChild(runwayInput);
+    form.appendChild(runwayDiv);
+
+    // Action Buttons
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'form-actions';
+    const saveButton = document.createElement('button');
+    saveButton.type = 'submit';
+    saveButton.className = 'btn btn-primary btn-sm';
+    saveButton.textContent = 'Save Ratings';
+    const cancelButton = document.createElement('button');
+    cancelButton.type = 'button';
+    cancelButton.className = 'btn btn-secondary btn-sm';
+    cancelButton.textContent = 'Cancel';
+    actionsDiv.appendChild(saveButton);
+    actionsDiv.appendChild(cancelButton);
+    form.appendChild(actionsDiv);
+    formDiv.appendChild(form);
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const newRatingsData = {};
+
+        for (const key in ratingsMap) {
+            newRatingsData[key] = parseFloat(formData.get(key)) || 0; // MODIFIED: Get by key directly
+        }
+        newRatingsData.runway = parseFloat(formData.get('runway')) || 0; 
+
+        try {
+            showStatus('Saving ratings...', false);
+            await projectService.updateProject(project.id, { detailedRatingsData: newRatingsData });
+            project.detailedRatingsData = newRatingsData; 
+            
+            if (projectService.calculateOverallRating) {
+                project.rating = projectService.calculateOverallRating(project.detailedRatingsData);
+                const ratingCell = projectCard.querySelector('.project-row .project-rating');
+                if (ratingCell) ratingCell.textContent = project.rating !== null && project.rating !== undefined ? project.rating.toFixed(1) : 'N/A';
+            }
+
+            renderDetailedRatings(project, viewDiv);
+            formDiv.style.display = 'none';
+            viewDiv.style.display = 'block';
+            editButton.style.display = 'inline-block';
+            showStatus('Detailed ratings updated successfully!', false);
+        } catch (error) {
+            console.error('Error updating detailed ratings:', error);
+            showStatus('Failed to update ratings: ' + (error.message || 'Unknown error'), true);
+        }
+    });
+
+    cancelButton.addEventListener('click', () => {
+        formDiv.style.display = 'none';
+        viewDiv.style.display = 'block';
+        editButton.style.display = 'inline-block'; 
+    });
+}
+
 // Enhanced createProjectCard function - extracted from renderProject
 function createProjectCard(project) {
     try {
@@ -200,21 +440,27 @@ function createProjectCard(project) {
         const projectRow = document.createElement('div');
         projectRow.className = 'project-row';
 
-        // Name Cell
+        // Conditionally add Rating Cell FIRST for BizDev projects
+        if (!project.isIanCollaboration) {
+            const ratingCell = document.createElement('div');
+            ratingCell.className = 'project-rating';
+            ratingCell.textContent = project.rating !== null && typeof project.rating !== 'undefined' ? project.rating.toFixed(1) : 'N/A'; // Using toFixed(1) as per overall rating calc
+            projectRow.appendChild(ratingCell);
+        }
+
+        // Name Cell (always present)
         const nameCell = document.createElement('div');
         nameCell.className = 'project-name-cell';
         nameCell.innerHTML = `
             <span class="ian-collab-indicator">${project.isIanCollaboration ? '🤝' : ''}</span>
             <span class="project-name">${project.name}</span>
         `;
-        projectRow.appendChild(nameCell);
-
-        // Rating Cell (remains the same)
-        const ratingCell = document.createElement('div');
-        ratingCell.className = 'project-rating';
-        ratingCell.textContent = project.rating !== null && typeof project.rating !== 'undefined' ? project.rating.toFixed(2) : 'N/A';
-        projectRow.appendChild(ratingCell);
-
+        const expandIcon = document.createElement('span');
+        expandIcon.className = 'expand-icon';
+        expandIcon.textContent = '▶';
+        nameCell.appendChild(expandIcon);
+        projectRow.appendChild(nameCell); // Append Name Cell AFTER rating (if rating exists)
+        
         // Priority Cell (now a custom dropdown)
         const priorityCell = document.createElement('div');
         priorityCell.className = 'project-priority-cell custom-select-container'; // Added common class
@@ -222,9 +468,12 @@ function createProjectCard(project) {
         const prioritySelectedDisplay = document.createElement('div');
         prioritySelectedDisplay.className = 'custom-select-selected priority-selected-display';
         prioritySelectedDisplay.tabIndex = 0; // Make it focusable
+        prioritySelectedDisplay.setAttribute('aria-haspopup', 'listbox'); // ARIA
+        prioritySelectedDisplay.setAttribute('aria-expanded', 'false'); // ARIA
 
         const priorityOptionsContainer = document.createElement('div');
         priorityOptionsContainer.className = 'custom-select-options priority-options-container'; // Hidden by default via CSS
+        priorityOptionsContainer.setAttribute('role', 'listbox'); // ARIA
 
         const priorities = [
             { value: 'high', text: 'High', colorClass: 'option-priority-high' },
@@ -247,6 +496,7 @@ function createProjectCard(project) {
             optionDiv.className = `custom-select-option ${p.colorClass}`;
             optionDiv.dataset.value = p.value;
             optionDiv.textContent = p.text;
+            optionDiv.setAttribute('role', 'option'); // ARIA
             optionDiv.addEventListener('click', async () => {
                 updatePriorityDisplay(p.value);
                 priorityOptionsContainer.style.display = 'none';
@@ -258,19 +508,46 @@ function createProjectCard(project) {
 
         updatePriorityDisplay(project.priority); // Set initial display
 
-        prioritySelectedDisplay.addEventListener('click', () => {
+        prioritySelectedDisplay.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent click from immediately closing due to document listener
             const isHidden = priorityOptionsContainer.style.display === 'none' || !priorityOptionsContainer.style.display;
+            // Close other dropdowns
+            closeAllCustomSelects(priorityOptionsContainer);
             priorityOptionsContainer.style.display = isHidden ? 'block' : 'none';
+            prioritySelectedDisplay.setAttribute('aria-expanded', isHidden ? 'true' : 'false'); // ARIA
+            if (isHidden) {
+                document.addEventListener('click', handleClickOutsidePriority);
+            } else {
+                document.removeEventListener('click', handleClickOutsidePriority);
+                prioritySelectedDisplay.setAttribute('aria-expanded', 'false'); // Ensure reset if closed by toggle
+            }
         });
         
         // Basic keyboard accessibility for opening
         prioritySelectedDisplay.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
+                e.stopPropagation();
                 const isHidden = priorityOptionsContainer.style.display === 'none' || !priorityOptionsContainer.style.display;
+                closeAllCustomSelects(priorityOptionsContainer);
                 priorityOptionsContainer.style.display = isHidden ? 'block' : 'none';
+                prioritySelectedDisplay.setAttribute('aria-expanded', isHidden ? 'true' : 'false'); // ARIA
+                if (isHidden) {
+                    document.addEventListener('click', handleClickOutsidePriority);
+                } else {
+                    document.removeEventListener('click', handleClickOutsidePriority);
+                    prioritySelectedDisplay.setAttribute('aria-expanded', 'false'); // Ensure reset if closed by toggle
+                }
             }
         });
+
+        function handleClickOutsidePriority(event) {
+            if (!priorityCell.contains(event.target)) {
+                priorityOptionsContainer.style.display = 'none';
+                prioritySelectedDisplay.setAttribute('aria-expanded', 'false'); // ARIA
+                document.removeEventListener('click', handleClickOutsidePriority);
+            }
+        }
 
         priorityCell.appendChild(prioritySelectedDisplay);
         priorityCell.appendChild(priorityOptionsContainer);
@@ -283,9 +560,12 @@ function createProjectCard(project) {
         const statusSelectedDisplay = document.createElement('div');
         statusSelectedDisplay.className = 'custom-select-selected status-selected-display';
         statusSelectedDisplay.tabIndex = 0; // Make it focusable
+        statusSelectedDisplay.setAttribute('aria-haspopup', 'listbox'); // ARIA
+        statusSelectedDisplay.setAttribute('aria-expanded', 'false'); // ARIA
 
         const statusOptionsContainer = document.createElement('div');
         statusOptionsContainer.className = 'custom-select-options status-options-container'; // Hidden by default via CSS
+        statusOptionsContainer.setAttribute('role', 'listbox'); // ARIA
 
         const statuses = [
             { value: 'potential', text: 'Potential', colorClass: 'option-status-potential' },
@@ -310,6 +590,7 @@ function createProjectCard(project) {
             optionDiv.className = `custom-select-option ${s.colorClass}`;
             optionDiv.dataset.value = s.value;
             optionDiv.textContent = s.text;
+            optionDiv.setAttribute('role', 'option'); // ARIA
             optionDiv.addEventListener('click', async () => {
                 updateStatusDisplay(s.value);
                 statusOptionsContainer.style.display = 'none';
@@ -320,18 +601,45 @@ function createProjectCard(project) {
 
         updateStatusDisplay(project.status); // Set initial display
 
-        statusSelectedDisplay.addEventListener('click', () => {
+        statusSelectedDisplay.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent click from immediately closing
             const isHidden = statusOptionsContainer.style.display === 'none' || !statusOptionsContainer.style.display;
+            // Close other dropdowns
+            closeAllCustomSelects(statusOptionsContainer);
             statusOptionsContainer.style.display = isHidden ? 'block' : 'none';
+            statusSelectedDisplay.setAttribute('aria-expanded', isHidden ? 'true' : 'false'); // ARIA
+            if (isHidden) {
+                document.addEventListener('click', handleClickOutsideStatus);
+            } else {
+                document.removeEventListener('click', handleClickOutsideStatus);
+                statusSelectedDisplay.setAttribute('aria-expanded', 'false'); // Ensure reset if closed by toggle
+            }
         });
         
         statusSelectedDisplay.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
+                e.stopPropagation();
                 const isHidden = statusOptionsContainer.style.display === 'none' || !statusOptionsContainer.style.display;
+                closeAllCustomSelects(statusOptionsContainer);
                 statusOptionsContainer.style.display = isHidden ? 'block' : 'none';
+                statusSelectedDisplay.setAttribute('aria-expanded', isHidden ? 'true' : 'false'); // ARIA
+                if (isHidden) {
+                    document.addEventListener('click', handleClickOutsideStatus);
+                } else {
+                    document.removeEventListener('click', handleClickOutsideStatus);
+                    statusSelectedDisplay.setAttribute('aria-expanded', 'false'); // Ensure reset if closed by toggle
+                }
             }
         });
+
+        function handleClickOutsideStatus(event) {
+            if (!statusCell.contains(event.target)) {
+                statusOptionsContainer.style.display = 'none';
+                statusSelectedDisplay.setAttribute('aria-expanded', 'false'); // ARIA
+                document.removeEventListener('click', handleClickOutsideStatus);
+            }
+        }
 
         statusCell.appendChild(statusSelectedDisplay);
         statusCell.appendChild(statusOptionsContainer);
@@ -341,18 +649,22 @@ function createProjectCard(project) {
 
         // Event listener for expansion - Moved to projectRow for better click target
         projectRow.addEventListener('click', (event) => {
-            // Prevent toggling if the click was on an interactive element like a select
-            if (event.target.tagName === 'SELECT' || event.target.tagName === 'INPUT' || event.target.tagName === 'A' || event.target.closest('.inline-edit-select')) {
+            // Prevent toggling if the click was on an interactive element
+            if (event.target.closest('.custom-select-container, .inline-edit-select, input, select, a, button')) {
                 return;
             }
 
             projectCard.classList.toggle('expanded');
             const detailsWrapper = projectCard.querySelector('.project-details-wrapper');
+            const currentExpandIcon = projectRow.querySelector('.expand-icon'); // Get the icon
+
             if (detailsWrapper) {
                 if (projectCard.classList.contains('expanded')) {
-                    detailsWrapper.style.display = 'block'; // Or 'grid', 'flex' as appropriate
+                    detailsWrapper.style.display = 'block'; 
+                    if (currentExpandIcon) currentExpandIcon.textContent = '▼'; // Expanded state
                 } else {
                     detailsWrapper.style.display = 'none';
+                    if (currentExpandIcon) currentExpandIcon.textContent = '▶'; // Collapsed state
                 }
             }
         });
@@ -404,168 +716,221 @@ function createProjectDetails(project, projectCard) {
     try {
         const detailsWrapper = document.createElement('div');
         detailsWrapper.className = 'project-details-wrapper';
-        detailsWrapper.style.display = 'none'; // Initially hidden
+        detailsWrapper.style.display = 'none'; // EXPLICITLY HIDE INITIALLY
 
-        // Tasks Section
-        const tasksContainer = document.createElement('div');
-        tasksContainer.className = 'project-tasks-bizdev project-detail-item';
-        tasksContainer.innerHTML = '<h3>Tasks</h3>';
-        const taskListEl = document.createElement('ul');
-        taskListEl.className = 'task-list-bizdev';
-        taskListEl.innerHTML = '<li>Loading tasks...</li>'; // Initial loading message
-        tasksContainer.appendChild(taskListEl);
+        // 1. Create Tab Navigation
+        const nav = document.createElement('div');
+        nav.className = 'project-details-nav';
 
-        // Form to Add New Task
-        const addTaskForm = document.createElement('form');
-        addTaskForm.className = 'add-task-form';
-        const taskInput = document.createElement('input');
-        taskInput.type = 'text';
-        taskInput.placeholder = 'New task...';
-        taskInput.required = true;
-        const addTaskButton = document.createElement('button');
-        addTaskButton.type = 'submit';
-        addTaskButton.textContent = 'Add Task';
-        addTaskButton.className = 'btn btn-secondary btn-sm';
+        const buttonsInfo = [ // Renamed from 'buttons' to avoid conflict if any local var named 'buttons'
+            { id: 'tasks', text: 'Tasks', paneId: 'tasks-pane-' + project.id, alwaysVisible: true },
+            { id: 'detailed-ratings', text: 'Detailed Ratings', paneId: 'detailed-ratings-pane-' + project.id, alwaysVisible: false }, // Renamed from 'insights'
+            { id: 'settings', text: 'Settings', paneId: 'settings-pane-' + project.id, alwaysVisible: true }
+        ];
 
-        addTaskForm.appendChild(taskInput);
-        addTaskForm.appendChild(addTaskButton);
-        tasksContainer.appendChild(addTaskForm);
-        
-        addTaskForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const taskText = taskInput.value.trim();
-            if (taskText) {
-                try {
-                    const newTask = await taskService.createTask(project.id, { text: taskText, completed: false });
-                    taskInput.value = ''; // Clear input
-                    // Re-fetch and render tasks for this project - CORRECTED METHOD NAME
-                    const updatedTasks = await taskService.getTasksByProjectId(project.id);
-                    renderTasks(updatedTasks, taskListEl, project.id); // Pass projectId
-                    // showStatusMessage('Task added successfully!', 'success'); // showStatusMessage is not defined here, handle later if needed
-                    console.log('Task added successfully!'); // Temporary log
-                } catch (error) {
-                    console.error('Error adding task:', error);
-                    // showStatusMessage('Failed to add task.', 'error'); // showStatusMessage is not defined here
-                    console.error('Failed to add task.'); // Temporary log
+        // 2. Create Tab Panes container
+        const panesContainer = document.createElement('div');
+        panesContainer.className = 'project-details-panes'; // A wrapper for all panes
+
+        buttonsInfo.forEach((btnInfo, index) => {
+            if (!btnInfo.alwaysVisible && project.isIanCollaboration) {
+                return; // Skip creating this tab for collab projects if not alwaysVisible
+            }
+
+            const button = document.createElement('button');
+            button.className = 'details-nav-button';
+            button.textContent = btnInfo.text;
+            button.dataset.paneTarget = btnInfo.paneId;
+            if (index === 0) button.classList.add('active'); // Tasks active by default
+            nav.appendChild(button);
+
+            const pane = document.createElement('div');
+            pane.className = 'details-tab-pane';
+            pane.id = btnInfo.paneId;
+            // Ensure the first *visible* tab and pane are active
+            if (nav.querySelectorAll('.details-nav-button').length === 1) { // If this is the first button being added
+                 button.classList.add('active');
+                 pane.classList.add('active-pane');
+            } else if (index === 0 && !project.isIanCollaboration) { // Default to tasks if not collab and tasks is first
+                 pane.classList.add('active-pane');
+            } else if (index !== 0 && project.isIanCollaboration && btnInfo.id === 'tasks') { // If collab, and this is tasks (which will be first visible)
+                 button.classList.add('active');
+                 pane.classList.add('active-pane');
+            }
+
+            panesContainer.appendChild(pane);
+        });
+
+        detailsWrapper.appendChild(nav);
+        detailsWrapper.appendChild(panesContainer);
+
+        // Event listener for tab navigation
+        nav.addEventListener('click', (e) => {
+            if (e.target.classList.contains('details-nav-button')) {
+                const targetButton = e.target;
+                const paneId = targetButton.dataset.paneTarget;
+
+                // Deactivate all buttons and panes
+                nav.querySelectorAll('.details-nav-button').forEach(btn => btn.classList.remove('active'));
+                panesContainer.querySelectorAll('.details-tab-pane').forEach(p => p.classList.remove('active-pane'));
+
+                // Activate clicked button and corresponding pane
+                targetButton.classList.add('active');
+                const targetPane = panesContainer.querySelector('#' + paneId);
+                if (targetPane) {
+                    targetPane.classList.add('active-pane');
                 }
             }
         });
 
-        detailsWrapper.appendChild(tasksContainer);
+        // --- Populate Panes ---
 
-        console.log(`[createProjectDetails] About to fetch tasks for projectId: ${project?.id}. taskListEl created.`);
-        if (taskService) {
-            console.log('[createProjectDetails] Inspecting taskService object keys:', Object.keys(taskService));
-        } else {
-            console.log('[createProjectDetails] taskService object is null or undefined.');
-        }
+        // 3. Tasks Pane
+        const tasksPane = panesContainer.querySelector('#tasks-pane-' + project.id);
+        if (tasksPane) {
+            const tasksContainer = document.createElement('div');
+            tasksContainer.className = 'project-tasks-bizdev project-detail-item'; // Keep existing class for now
+            tasksContainer.innerHTML = '<h3>Tasks</h3>';
+            const taskListEl = document.createElement('ul');
+            taskListEl.className = 'task-list-bizdev';
+            taskListEl.innerHTML = '<li>Loading tasks...</li>';
+            tasksContainer.appendChild(taskListEl);
 
-        // Fetch and render tasks when details are first created - CORRECTED METHOD NAME in condition and call
-        if (project && project.id && taskService && typeof taskService.getTasksByProjectId === 'function') {
-            try {
-                taskService.getTasksByProjectId(project.id)
+            const addTaskForm = document.createElement('form');
+            addTaskForm.className = 'add-task-form top-level-task-form'; // Differentiate top-level form
+            const taskInput = document.createElement('input');
+            taskInput.type = 'text';
+            taskInput.placeholder = 'New task...';
+            taskInput.required = true;
+            const addTaskButton = document.createElement('button');
+            addTaskButton.type = 'submit';
+            addTaskButton.textContent = 'Add Task';
+            addTaskButton.className = 'btn btn-secondary btn-sm';
+            addTaskForm.appendChild(taskInput);
+            addTaskForm.appendChild(addTaskButton);
+            tasksContainer.appendChild(addTaskForm);
+            
+            addTaskForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const taskText = taskInput.value.trim();
+                if (taskText) {
+                    try {
+                        await taskService.createTask(project.id, { text: taskText, completed: false, parentId: null }); // Explicitly null for top-level
+                        taskInput.value = ''; 
+                        const updatedTasks = await taskService.getTasksByProjectId(project.id, null); // Fetch top-level tasks
+                        await renderTasks(updatedTasks, taskListEl, project.id, null, 0); // Rerender top-level tasks
+                        showStatus('Task added successfully!', false);
+                    } catch (error) {
+                        console.error('Error adding task:', error);
+                        showStatus('Failed to add task: ' + (error.message || 'Unknown error'), true);
+                    }
+                }
+            });
+            tasksPane.appendChild(tasksContainer);
+
+            // Fetch and render tasks (existing logic, ensured taskListEl is from the correct pane)
+            if (project && project.id && taskService && typeof taskService.getTasksByProjectId === 'function') {
+                 taskService.getTasksByProjectId(project.id, null) // Fetch top-level tasks initially
                     .then(tasks => {
-                        console.log(`[createProjectDetails] Task promise resolved for projectId: ${project.id}. Tasks:`, tasks, `Is taskListEl connected: ${taskListEl?.isConnected}`);
-                        if (taskListEl && taskListEl.isConnected) {
-                            renderTasks(tasks, taskListEl, project.id);
-                        } else {
-                            console.warn('[createProjectDetails] taskListEl no longer connected to DOM for task rendering after promise resolved.');
+                        if (taskListEl && taskListEl.isConnected) { // Check if still in DOM
+                            renderTasks(tasks, taskListEl, project.id, null, 0); // Initial render with level 0
                         }
                     })
                     .catch(error => {
-                        console.error(`[createProjectDetails] Task promise rejected for projectId: ${project.id}. Error:`, error, `Is taskListEl connected: ${taskListEl?.isConnected}`);
+                        console.error(`Error fetching tasks for project ${project.id} in new tab structure:`, error);
                         if (taskListEl && taskListEl.isConnected) {
-                            taskListEl.innerHTML = '<li><i>Error loading tasks. Check console.</i></li>';
+                           taskListEl.innerHTML = '<li><i>Error loading tasks. Check console.</i></li>';
                         }
                     });
-            } catch (taskServiceCallError) {
-                console.error(`[createProjectDetails] Error directly calling taskService.getTasksByProjectId for projectId: ${project.id}:`, taskServiceCallError);
-                if (taskListEl && taskListEl.isConnected) {
-                    taskListEl.innerHTML = '<li><i>Critical error initiating task loading. Check console.</i></li>';
-                }
-            }
-        } else {
-            // Enhanced logging to see the state of each part of the condition
-            console.error('[createProjectDetails] Condition for fetching tasks failed with following states:', {
-                'project': project,
-                'project && project.id': project && project.id, // Evaluate this part directly
-                'typeof project.id': typeof project?.id,
-                'taskService': taskService,
-                'typeof taskService.getTasksByProjectId': typeof taskService?.getTasksByProjectId,
-                // Log the full original condition parts for clarity
-                'condition_project': !!project,
-                'condition_project_id': !!(project && project.id),
-                'condition_taskService': !!taskService,
-                'condition_getTasks_is_function': typeof taskService?.getTasksByProjectId === 'function' // CORRECTED METHOD NAME here too
-            });
-            if (taskListEl && taskListEl.isConnected) {
-                taskListEl.innerHTML = '<li><i>Could not load tasks due to an internal condition check. See console.</i></li>';
             }
         }
 
-        // Detailed Ratings Section
-        const detailedRatingsContainer = document.createElement('div');
-        detailedRatingsContainer.className = 'detailed-ratings-container project-detail-item'; // Add common class
-        detailedRatingsContainer.innerHTML = '<h3>Detailed Ratings</h3>';
-        const ratingsContent = document.createElement('div'); // Actual content holder
-        detailedRatingsContainer.appendChild(ratingsContent);
-        detailsWrapper.appendChild(detailedRatingsContainer);
-        renderDetailedRatings(project, ratingsContent); // Render into the content holder
+        // 4. Detailed Ratings Pane (formerly Insights)
+        const detailedRatingsPane = panesContainer.querySelector('#detailed-ratings-pane-' + project.id); // Use new ID
+        if (detailedRatingsPane && !project.isIanCollaboration) { // Check if pane exists (it won't for collab)
+            const ratingsTitle = document.createElement('h3');
+            ratingsTitle.textContent = 'Detailed Ratings'; // Updated title
+            detailedRatingsPane.appendChild(ratingsTitle);
 
-        // Collaboration Checkbox Section
-        const collaborationContainer = document.createElement('div');
-        collaborationContainer.className = 'project-collaboration-details project-detail-item';
-        collaborationContainer.innerHTML = '<h3>Collaboration</h3>';
+            const viewDetailedRatingsDiv = document.createElement('div');
+            viewDetailedRatingsDiv.className = 'view-detailed-ratings project-detail-item';
+            detailedRatingsPane.appendChild(viewDetailedRatingsDiv);
+            renderDetailedRatings(project, viewDetailedRatingsDiv); // Initial render
 
-        const collabLabel = document.createElement('label');
-        collabLabel.htmlFor = `collab-checkbox-${project.id}`;
-        collabLabel.textContent = 'Is Ian Collaboration? ';
-        const collabCheckbox = document.createElement('input');
-        collabCheckbox.type = 'checkbox';
-        collabCheckbox.id = `collab-checkbox-${project.id}`;
-        collabCheckbox.className = 'inline-edit-checkbox';
-        collabCheckbox.checked = project.isIanCollaboration || false;
-        collabCheckbox.dataset.field = 'isIanCollaboration';
+            const editRatingsButton = document.createElement('button');
+            editRatingsButton.className = 'btn btn-secondary btn-sm btn-edit-ratings';
+            editRatingsButton.textContent = 'Edit Detailed Ratings';
+            detailedRatingsPane.appendChild(editRatingsButton);
 
-        collabCheckbox.addEventListener('change', async (e) => {
-            handleInlineEdit(project.id, 'isIanCollaboration', e.target.checked, projectCard);
-            // Update indicator in the main row as well
-            const indicator = projectCard.querySelector('.project-row .ian-collab-indicator');
-            if (indicator) {
-                indicator.textContent = e.target.checked ? '🤝' : '';
-            }
-        });
-        
-        collaborationContainer.appendChild(collabLabel);
-        collaborationContainer.appendChild(collabCheckbox);
-        detailsWrapper.appendChild(collaborationContainer);
+            const editDetailedRatingsFormDiv = document.createElement('div');
+            editDetailedRatingsFormDiv.className = 'edit-detailed-ratings-form project-detail-item';
+            editDetailedRatingsFormDiv.style.display = 'none'; // Initially hidden
+            detailedRatingsPane.appendChild(editDetailedRatingsFormDiv);
 
-        // Danger Zone - Delete Project Button
-        const dangerZoneContainer = document.createElement('div');
-        dangerZoneContainer.className = 'project-detail-item danger-zone';
-        dangerZoneContainer.innerHTML = '<h3>Danger Zone</h3>';
+            editRatingsButton.addEventListener('click', () => {
+                viewDetailedRatingsDiv.style.display = 'none';
+                editDetailedRatingsFormDiv.style.display = 'block';
+                editRatingsButton.style.display = 'none'; // Hide edit button when form is visible
+                populateEditRatingsForm(project, editDetailedRatingsFormDiv, viewDetailedRatingsDiv, editRatingsButton, projectCard);
+            });
+        }
 
-        const deleteProjectButton = document.createElement('button');
-        deleteProjectButton.textContent = 'Delete This Project';
-        deleteProjectButton.className = 'btn btn-danger btn-sm'; // Style as a small danger button
-        deleteProjectButton.addEventListener('click', async () => {
-            if (confirm(`Are you sure you want to delete the project "${project.name}"? This action cannot be undone.`)) {
-                try {
-                    await projectService.deleteProject(project.id);
-                    console.log(`Project "${project.name}" (ID: ${project.id}) deleted successfully.`);
-                    // Remove the project card from the UI
-                    if (projectCard && projectCard.parentNode) {
-                        projectCard.remove(); // Modern way to remove element
+        // 5. Settings Pane
+        const settingsPane = panesContainer.querySelector('#settings-pane-' + project.id);
+        if (settingsPane) {
+            const settingsHeading = document.createElement('h3'); // Use a consistent variable name
+            settingsHeading.textContent = 'Project Settings';
+            settingsPane.appendChild(settingsHeading);
+
+            // Collaboration Section
+            const collaborationContainer = document.createElement('div');
+            collaborationContainer.className = 'project-detail-item settings-section'; // Added generic section class
+            const collaborationTitle = document.createElement('h4');
+            collaborationTitle.textContent = 'Collaboration Status';
+            collaborationContainer.appendChild(collaborationTitle);
+            
+            const collabLabel = document.createElement('label');
+            collabLabel.htmlFor = `collab-checkbox-${project.id}`;
+            collabLabel.textContent = 'Mark as Collaboration Project: '; // Updated label
+            const collabCheckbox = document.createElement('input');
+            collabCheckbox.type = 'checkbox';
+            collabCheckbox.id = `collab-checkbox-${project.id}`;
+            collabCheckbox.className = 'inline-edit-checkbox';
+            collabCheckbox.checked = project.isIanCollaboration || false;
+            collabCheckbox.dataset.field = 'isIanCollaboration';
+            collabCheckbox.addEventListener('change', async (e) => {
+                await handleInlineEdit(project.id, 'isIanCollaboration', e.target.checked, projectCard);
+                const indicator = projectCard.querySelector('.project-row .ian-collab-indicator');
+                if (indicator) indicator.textContent = e.target.checked ? '🤝' : '';
+            });
+            collaborationContainer.appendChild(collabLabel);
+            collaborationContainer.appendChild(collabCheckbox);
+            settingsPane.appendChild(collaborationContainer);
+
+            // Danger Zone - Delete Project Button
+            const dangerZoneContainer = document.createElement('div');
+            dangerZoneContainer.className = 'project-detail-item danger-zone settings-section'; // Added generic section class
+            const dangerZoneTitle = document.createElement('h4');
+            dangerZoneTitle.textContent = 'Danger Zone';
+            dangerZoneContainer.appendChild(dangerZoneTitle);
+            const deleteProjectButton = document.createElement('button');
+            deleteProjectButton.textContent = 'Delete This Project';
+            deleteProjectButton.className = 'btn btn-danger btn-sm';
+            deleteProjectButton.addEventListener('click', async () => {
+                if (confirm(`Are you sure you want to delete the project "${project.name}"? This action cannot be undone.`)) {
+                    try {
+                        await projectService.deleteProject(project.id);
+                        if (projectCard && projectCard.parentNode) projectCard.remove();
+                        showStatus('Project deleted successfully!', false);
+                    } catch (error) {
+                        console.error(`Error deleting project ${project.id}:`, error);
+                        showStatus(`Failed to delete project: ` + (error.message || 'Unknown error'), true);
                     }
-                    // Optionally, show a more persistent success message via a proper status system
-                } catch (error) {
-                    console.error(`Error deleting project ${project.id}:`, error);
-                    alert(`Failed to delete project "${project.name}". Please try again or check the console.`);
                 }
-            }
-        });
-        dangerZoneContainer.appendChild(deleteProjectButton);
-        detailsWrapper.appendChild(dangerZoneContainer);
+            });
+            dangerZoneContainer.appendChild(deleteProjectButton);
+            settingsPane.appendChild(dangerZoneContainer);
+        }
 
         return detailsWrapper;
     } catch (error) {
@@ -632,6 +997,13 @@ async function renderProjectList(dataSourceKey, containerId, sortBy, filterIanCo
         return;
     }
     
+    // Apply class for styling collab list differently
+    if (dataSourceKey === 'ian') {
+        container.classList.add('collab-list-view');
+    } else {
+        container.classList.remove('collab-list-view');
+    }
+
     container.innerHTML = ''; // Clear existing projects
     
     // Add loading indicator
@@ -757,7 +1129,7 @@ function setupEventListeners() {
             const dataSourceKey = event.target.dataset.source;
             const showIan = (dataSourceKey === 'bizdev') ? false : true;
             
-            renderProjectList(dataSourceKey, listId, sortBy, showIan);
+            renderProjectList(dataSourceKey, listId, sortBy, dataSourceKey === 'ian'); // Pass correct filterIanCollab
         });
     });
 
@@ -809,38 +1181,48 @@ function setupEventListeners() {
     document.getElementById('addProjectForm').addEventListener('submit', async function(event) {
         event.preventDefault();
         
+        const form = event.target;
+        const name = document.getElementById('newProjectName').value.trim();
+        if (!name) {
+            showStatus('Project name is required', true);
+            return;
+        }
+        const ratingValue = parseFloat(document.getElementById('newProjectRating').value);
+        // Allow N/A or empty rating for collaboration projects during creation
+        const isCollabProject = document.getElementById('newProjectIanCollab').checked;
+        if (!isCollabProject && (isNaN(ratingValue) || ratingValue < 0 || ratingValue > 5)) {
+            showStatus('Rating must be between 0 and 5 for BizDev projects', true);
+            return;
+        }
+
         try {
             const newProject = {
-                name: document.getElementById('newProjectName').value,
+                name: name, // Use validated name
                 description: document.getElementById('newProjectDescription').value,
-                rating: parseFloat(document.getElementById('newProjectRating').value),
+                rating: isNaN(ratingValue) || !document.getElementById('newProjectRating').value ? null : ratingValue,
                 priority: document.getElementById('newProjectPriority').value,
                 status: document.getElementById('newProjectStatus').value,
                 isIanCollaboration: document.getElementById('newProjectIanCollab').checked,
                 detailedRatingsData: {} // Initialize empty, can be filled later
             };
             
+            // showStatus('Creating project...', false); // Optional: immediate feedback
             const createdProject = await projectService.createProject(newProject);
             
             closeModal('addProjectModal');
-            this.reset(); // Reset the form
+            form.reset(); // Reset the form using the form reference
+            showStatus('Project added successfully!', false); // Success feedback
             
-            // Re-render the currently active list
-            const activeTab = document.querySelector('.tab-button.active').dataset.tab;
-            
-            if (activeTab === 'bizdev') {
-                const bizDevSortBy = document.getElementById('sort-bizdev').value;
-                await renderProjectList('bizdev', 'bizdev-project-list', bizDevSortBy, false);
-            } else { // Ian collab tab
-                const ianSortBy = document.getElementById('sort-ian').value;
-                await renderProjectList('ian', 'ian-collab-project-list', ianSortBy, true);
+            // Determine which list to refresh based on the new project's collaboration status
+            if (isCollabProject) {
+                renderProjectList('ian', 'ian-collab-project-list', document.getElementById('sort-ian').value, true);
+            } else {
+                renderProjectList('bizdev', 'bizdev-project-list', document.getElementById('sort-bizdev').value, false);
             }
+
         } catch (error) {
             console.error('Error creating project:', error);
-            if (error.message) console.error('Error message:', error.message);
-            if (error.code) console.error('Error code:', error.code);
-            if (error.details) console.error('Error details:', error.details);
-            alert('Failed to create project. Please try again.');
+            showStatus('Failed to create project: ' + (error.message || 'Unknown error'), true); // Use showStatus
         }
     });
 

@@ -169,21 +169,22 @@ function sortProjects(projects, sortBy) {
 
 // Rating calculations
 function calculateOverallRating(detailedRatings) {
-    if (!detailedRatings) return 0;
-    
-    let totalWeight = 0;
-    let weightedSum = 0;
-    
+    if (!detailedRatings || typeof detailedRatings !== 'object' || Object.keys(detailedRatings).length === 0) return 0;
+
+    let sum = 0;
+    let count = 0;
+
     for (const key in detailedRatings) {
-        const item = detailedRatings[key];
-        if (item && typeof item.value === 'number' && typeof item.weight === 'number') {
-            totalWeight += item.weight;
-            weightedSum += item.value * item.weight;
+        // Ensure the value is a number and treat it as a rating
+        const ratingValue = parseFloat(detailedRatings[key]);
+        if (typeof ratingValue === 'number' && !isNaN(ratingValue)) {
+            sum += ratingValue;
+            count++;
         }
     }
-    
-    if (totalWeight === 0) return 0;
-    return Number((weightedSum / totalWeight).toFixed(1));
+
+    if (count === 0) return 0;
+    return Number((sum / count).toFixed(1)); // Return average, rounded
 }
 
 // Export project service

@@ -141,7 +141,11 @@ async function fetchData(table, filters = {}, sortBy = null) {
         
         // Apply filters
         for (const [key, value] of Object.entries(snakeCaseFilters)) {
-            query = query.eq(key, value);
+            if (value === null) {
+                query = query.is(key, null); // Use .is() for NULL checks
+            } else {
+                query = query.eq(key, value);
+            }
         }
         
         // Handle string-based sortBy (from UI) and object-based sortBy
