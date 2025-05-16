@@ -1,87 +1,7 @@
 // Projects related functionality
 
-// Sample data for development (will be removed when connected to Supabase)
-let sampleBizDevProjects = [
-    {
-        id: 'proj1',
-        name: 'Client Alpha Acquisition',
-        rating: 4.8,
-        priority: 'high',
-        status: 'active',
-        description: 'Pursuing a large contract with Client Alpha. Focus on building relationship and understanding their needs.',
-        isIanCollaboration: false,
-        tasks: [
-            { id: 't1_1', text: 'Initial contact & intro call', completed: true },
-            { id: 't1_2', text: 'Prepare detailed proposal', completed: false },
-        ],
-        detailedRatings: {
-            revenuePotential: { value: 5, weight: 0.3 }, 
-            insiderSupport: { value: 4, weight: 0.2 },
-            strategicFitEvolve: { value: 5, weight: 0.15 }, 
-            strategicFitVerticals: { value: 4, weight: 0.1 },
-            clarityClient: { value: 3, weight: 0.05 }, 
-            clarityUs: { value: 4, weight: 0.05 },
-            effortPotentialClient: { value: 3, weight: 0.05 }, 
-            effortExistingClient: { value: null, weight: 0 }, // N/A
-            timingPotentialClient: { value: 5, weight: 0.1 }, 
-            runway: 12 // months
-        }
-    },
-    {
-        id: 'proj2',
-        name: 'New Market Research - Europe',
-        rating: 4.2,
-        priority: 'medium',
-        status: 'potential',
-        description: 'Exploring potential for expansion into the European market. Identify key countries and competitors.',
-        isIanCollaboration: false,
-        tasks: [ 
-            { id: 't2_1', text: 'Identify top 3 target countries', completed: false } 
-        ],
-        detailedRatings: { 
-            revenuePotential: { value: 4, weight: 0.3 },
-            insiderSupport: { value: 3, weight: 0.2 },
-            strategicFitEvolve: { value: 5, weight: 0.15 },
-            strategicFitVerticals: { value: 4, weight: 0.1 },
-            runway: 6
-        }
-    },
-    {
-        id: 'ian_proj1',
-        name: 'CTO Club Engagement Support',
-        rating: 4.5,
-        priority: 'high',
-        status: 'active',
-        description: 'IK to support JS in CTO Club activities. Increase visibility and networking.',
-        isIanCollaboration: true,
-        tasks: [
-            { id: 'it1_1', text: 'Research upcoming CTO Club events', completed: true },
-            { id: 'it1_2', text: 'Draft talking points for JS for next event', completed: false },
-        ],
-        detailedRatings: { 
-            revenuePotential: { value: 3, weight: 0.1 }, 
-            insiderSupport: { value: 5, weight: 0.3 },
-            strategicFitEvolve: { value: 4, weight: 0.2 },
-            runway: 6 
-        }
-    },
-    {
-        id: 'ian_proj2',
-        name: 'TechSummit 2024 Logistics',
-        rating: 4.9,
-        priority: 'high',
-        status: 'potential',
-        description: 'Plan and execute presence at TechSummit 2024. IK to manage logistics and pre-event marketing.',
-        isIanCollaboration: true,
-        tasks: [],
-        detailedRatings: { 
-            revenuePotential: { value: 5, weight: 0.3 },
-            insiderSupport: { value: 4, weight: 0.2 },
-            strategicFitEvolve: { value: 5, weight: 0.15 },
-            runway: 9
-        }
-    }
-];
+// Import the supabase service
+import { supabaseService } from './supabase.js';
 
 // Order settings for sorting
 const priorityOrder = { high: 1, medium: 2, low: 3 };
@@ -90,39 +10,66 @@ const statusOrder = { potential: 1, active: 2, 'on-hold': 3, completed: 4, archi
 // Project CRUD operations
 async function getProjects(filters = {}, sortBy = null) {
     try {
-        // In production, this would use the supabaseService.fetch:
-        // return await supabaseService.fetch('projects', filters, sortBy);
+        console.log('Getting projects with filters:', filters, 'sort:', sortBy); // Debug log
+        if (window.debugLog) window.debugLog(`Getting projects with filters: ${JSON.stringify(filters)}`);
         
-        // For now, return filtered and sorted sample data
-        let projects = [...sampleBizDevProjects];
+        // Use the supabase service to fetch real data
+        const data = await supabaseService.fetch('projects', filters, sortBy);
+        console.log('Received project data from database:', data.length, 'projects', data); // Debug log
+        if (window.debugLog) window.debugLog(`Raw project data received: ${data.length} projects`);
         
-        // Apply filters
-        if (filters.isIanCollaboration !== undefined) {
-            projects = projects.filter(p => p.isIanCollaboration === filters.isIanCollaboration);
+        // Ensure all projects have proper structure
+        const processedData = data.map(project => {
+            // Log raw project data for debugging
+            if (window.debugLog) window.debugLog(`Processing raw project: ${JSON.stringify(project)}`);
+            
+            // Force camelCase for key fields
+            const processed = {
+                id: project.id || `proj_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                name: project.name || 'Untitled Project',
+                description: project.description || '',
+                rating: typeof project.rating === 'number' ? project.rating : 0,
+                priority: project.priority || 'medium',
+                status: project.status || 'potential',
+                isIanCollaboration: Boolean(project.isIanCollaboration || project.is_ian_collaboration || false),
+                detailedRatingsData: project.detailedRatingsData || project.detailed_ratings_data || {},
+            };
+            
+            // Ensure we don't have both camelCase and snake_case versions of the same property
+            // to avoid confusion in the rest of the application
+            if (window.debugLog) window.debugLog(`Processed project: ${processed.name} (${processed.id}), isIanCollaboration: ${processed.isIanCollaboration}`);
+            return processed;
+        });
+        
+        if (window.debugLog) window.debugLog(`Processed ${processedData.length} projects`);
+        
+        // Always apply custom sorting for consistency
+        if (processedData.length > 0) {
+            if (window.debugLog) window.debugLog(`Sorting projects by ${sortBy}`);
+            
+            if (typeof sortBy === 'string') {
+                return sortProjects(processedData, sortBy);
+            } else if (typeof sortBy === 'object' && sortBy !== null) {
+                // Convert object sortBy to string format for our sortProjects function
+                const direction = sortBy.ascending ? 'asc' : 'desc';
+                const sortByString = `${sortBy.column}_${direction}`;
+                return sortProjects(processedData, sortByString);
+            }
         }
         
-        // Apply sorting
-        if (sortBy) {
-            projects = sortProjects(projects, sortBy);
-        }
-        
-        console.log('Fetched projects:', projects);
-        return projects;
+        return processedData;
     } catch (error) {
         console.error('Error getting projects:', error);
+        if (window.debugLog) window.debugLog(`ERROR getting projects: ${error.message}`);
         return [];
     }
 }
 
 async function getProjectById(id) {
     try {
-        // In production:
-        // return await supabaseService.fetch('projects', { id }, null)[0];
-        
-        // For now, find in sample data
-        const project = sampleBizDevProjects.find(p => p.id === id);
-        console.log('Fetched project by ID:', project);
-        return project || null;
+        // Get project from the database
+        const result = await supabaseService.fetch('projects', { id }, null);
+        return result[0] || null;
     } catch (error) {
         console.error(`Error getting project with id ${id}:`, error);
         return null;
@@ -131,45 +78,64 @@ async function getProjectById(id) {
 
 async function createProject(projectData) {
     try {
-        // In production:
-        // return await supabaseService.insert('projects', projectData);
+        console.log('Creating new project:', projectData); // Debug log
         
-        // For now, add to sample data
-        const newProject = {
-            id: `proj_${Date.now()}`,
-            ...projectData,
-            tasks: projectData.tasks || []
+        // Validate required fields
+        if (!projectData.name) {
+            throw new Error('Project name is required');
+        }
+        
+        if (typeof projectData.rating !== 'number' || isNaN(projectData.rating) || projectData.rating < 0 || projectData.rating > 5) {
+            throw new Error('Project rating must be a number between 0 and 5');
+        }
+        
+        // Make sure we have valid values for optional fields
+        const validatedProject = {
+            name: projectData.name.trim(),
+            description: projectData.description || '',
+            rating: projectData.rating,
+            priority: ['high', 'medium', 'low'].includes(projectData.priority) ? projectData.priority : 'medium',
+            status: ['potential', 'active', 'on-hold', 'completed', 'archived'].includes(projectData.status) ? projectData.status : 'potential',
+            isIanCollaboration: !!projectData.isIanCollaboration,
+            detailedRatingsData: projectData.detailedRatingsData || {}
         };
-        sampleBizDevProjects.push(newProject);
-        console.log('Created project:', newProject);
-        return newProject;
+        
+        console.log('Validated project data:', validatedProject); // Debug log
+        
+        // Create project in the database
+        const result = await supabaseService.insert('projects', validatedProject);
+        
+        if (!result) {
+            throw new Error('No result returned from database after insert');
+        }
+        
+        console.log('Project created successfully:', result); // Debug log
+        
+        if (window.debugLog) {
+            window.debugLog(`Created project: ${result.name} (${result.id})`);
+        }
+        
+        return result;
     } catch (error) {
         console.error('Error creating project:', error);
+        // Log more detailed error information
+        if (error.message) console.error('Error message:', error.message);
+        if (error.code) console.error('Error code:', error.code);
+        if (error.details) console.error('Error details:', error.details);
+        
+        // Show user-visible error
+        if (typeof window.showStatus === 'function') {
+            window.showStatus(`Failed to create project: ${error.message || 'Unknown error'}`, true);
+        }
+        
         throw error;
     }
 }
 
 async function updateProject(id, projectData) {
     try {
-        // In production:
-        // return await supabaseService.update('projects', id, projectData);
-        
-        // For now, update in sample data
-        const index = sampleBizDevProjects.findIndex(p => p.id === id);
-        if (index !== -1) {
-            // Keep tasks if not provided in update
-            const tasks = projectData.tasks || sampleBizDevProjects[index].tasks;
-            
-            // Update project
-            sampleBizDevProjects[index] = {
-                ...sampleBizDevProjects[index],
-                ...projectData,
-                tasks
-            };
-            console.log('Updated project:', sampleBizDevProjects[index]);
-            return sampleBizDevProjects[index];
-        }
-        throw new Error(`Project with id ${id} not found`);
+        // Update project in the database
+        return await supabaseService.update('projects', id, projectData);
     } catch (error) {
         console.error(`Error updating project with id ${id}:`, error);
         throw error;
@@ -178,17 +144,8 @@ async function updateProject(id, projectData) {
 
 async function deleteProject(id) {
     try {
-        // In production:
-        // return await supabaseService.delete('projects', id);
-        
-        // For now, remove from sample data
-        const index = sampleBizDevProjects.findIndex(p => p.id === id);
-        if (index !== -1) {
-            sampleBizDevProjects.splice(index, 1);
-            console.log(`Deleted project with id ${id}`);
-            return true;
-        }
-        throw new Error(`Project with id ${id} not found`);
+        // Delete project from the database
+        return await supabaseService.delete('projects', id);
     } catch (error) {
         console.error(`Error deleting project with id ${id}:`, error);
         throw error;
@@ -230,12 +187,77 @@ function calculateOverallRating(detailedRatings) {
 }
 
 // Export project service
-const projectService = {
+export const projectService = {
     getProjects,
     getProjectById,
     createProject,
     updateProject,
     deleteProject,
     sortProjects,
-    calculateOverallRating
+    calculateOverallRating,
+    
+    // Validate project data structure
+    validateProject: function(project) {
+        if (!project) return { isValid: false, error: 'Project is null or undefined' };
+        
+        const requiredFields = ['id', 'name'];
+        const missingFields = requiredFields.filter(field => !project[field]);
+        
+        if (missingFields.length > 0) {
+            return {
+                isValid: false,
+                error: `Missing required fields: ${missingFields.join(', ')}`,
+                project
+            };
+        }
+        
+        // Ensure all required fields have valid types/values
+        const validations = [
+            { field: 'rating', check: (val) => typeof val === 'number' && !isNaN(val), fix: () => 0 },
+            { field: 'priority', check: (val) => typeof val === 'string', fix: () => 'medium' },
+            { field: 'status', check: (val) => typeof val === 'string', fix: () => 'potential' },
+            { field: 'description', check: (val) => val === null || typeof val === 'string', fix: () => '' },
+            { 
+                field: 'isIanCollaboration', 
+                check: (val) => typeof val === 'boolean', 
+                fix: (project) => {
+                    // Handle both camelCase and snake_case versions
+                    return Boolean(project.isIanCollaboration || project.is_ian_collaboration || false);
+                }
+            },
+            { 
+                field: 'detailedRatingsData', 
+                check: (val) => val === null || typeof val === 'object', 
+                fix: () => ({})
+            }
+        ];
+        
+        let fixed = false;
+        let fixedProject = { ...project };
+        
+        for (const validation of validations) {
+            if (!validation.check(project[validation.field])) {
+                fixed = true;
+                fixedProject[validation.field] = validation.fix(project);
+            }
+        }
+        
+        // Special handling for mixed case issues between isIanCollaboration and is_ian_collaboration
+        if (project.is_ian_collaboration !== undefined && project.isIanCollaboration === undefined) {
+            fixed = true;
+            fixedProject.isIanCollaboration = Boolean(project.is_ian_collaboration);
+        }
+        
+        // Special handling for mixed case issues between detailedRatingsData and detailed_ratings_data
+        if (project.detailed_ratings_data !== undefined && project.detailedRatingsData === undefined) {
+            fixed = true;
+            fixedProject.detailedRatingsData = project.detailed_ratings_data || {};
+        }
+        
+        return {
+            isValid: true,
+            wasFixed: fixed,
+            project: fixed ? fixedProject : project
+        };
+    }
 }; 

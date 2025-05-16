@@ -62,10 +62,37 @@ h2 { margin-bottom: 15px; }
     flex-wrap: wrap;
     gap: 15px;
 }
+
+/* New style for the group of dropdowns */
+.dropdown-controls-group {
+    display: flex;
+    align-items: center;
+    gap: 15px; /* Same gap as list-controls */
+    flex-wrap: wrap; /* Allow wrapping if space is very limited */
+}
+
 .sort-controls, .filter-controls { display: flex; align-items: center; gap: 10px; }
-.sort-controls label, .filter-controls label { font-weight: 500; }
-.sort-controls select, .filter-controls input[type="checkbox"] { padding: 8px 12px; border: 1px solid var(--medium-gray); border-radius: 4px; background-color: #fff; font-size: 14px; }
-.filter-controls input[type="checkbox"] { padding: 0; width: 16px; height: 16px; margin-right: 5px; }
+.sort-controls label, .filter-controls label { font-weight: 500; margin-right: 5px; /* Add a bit of space between label and select */ }
+
+/* Apply consistent styling to all select elements within sort-controls and filter-controls */
+.sort-controls select,
+.filter-controls select,
+.filter-controls input[type="checkbox"] {
+    padding: 8px 12px;
+    border: 1px solid var(--medium-gray);
+    border-radius: 4px;
+    background-color: #fff;
+    font-size: 14px;
+    /* Optionally, add a min-width if they still don't align well due to text differences */
+    /* min-width: 150px; */ 
+}
+
+.filter-controls input[type="checkbox"] { 
+    padding: 0; /* Reset padding for checkboxes if it was inherited */
+    width: 16px; 
+    height: 16px; 
+    margin-right: 5px; 
+}
 
 .btn {
     padding: 8px 15px;
@@ -86,7 +113,7 @@ h2 { margin-bottom: 15px; }
 /* Project List (Table-like) */
 .project-list-header {
     display: grid;
-    grid-template-columns: minmax(250px, 2fr) 80px 100px 120px 50px; /* Name, Rating, Prio, Status, Expand */
+    grid-template-columns: minmax(250px, 2fr) 80px 130px 140px;
     gap: 10px;
     padding: 10px 15px;
     font-weight: 600;
@@ -95,36 +122,224 @@ h2 { margin-bottom: 15px; }
     font-size: 0.9em;
     color: var(--dark-gray);
 }
-.project-list-header > div:first-child { padding-left: 20px; } /* Space for Ian collab icon */
+.project-list-header > div:first-child { padding-left: 5px; }
 
 
 .project-card {
     background-color: #fff;
     border: 1px solid var(--card-border-color);
     border-radius: 5px;
-    margin-bottom: 10px; /* Replaced gap for individual margins */
+    margin-bottom: 10px;
     transition: box-shadow 0.2s ease-in-out;
 }
 .project-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 
 .project-row {
     display: grid;
-    grid-template-columns: minmax(250px, 2fr) 80px 100px 120px 50px;
+    grid-template-columns: minmax(250px, 2fr) 80px 130px 140px;
     gap: 10px;
     align-items: center;
-    padding: 12px 15px;
+    padding: 10px 15px;
     cursor: pointer;
 }
-.project-name-cell { display: flex; align-items: center; }
+.project-name-cell { display: flex; align-items: center; gap: 5px; }
 .ian-collab-indicator {
-    font-size: 0.8em;
+    font-size: 1em;
     color: var(--primary-color);
-    margin-right: 8px;
-    width: 12px; /* Placeholder width */
+    width: 15px;
+    text-align: center;
 }
 
 .project-name { font-weight: 600; color: var(--text-color); }
-.project-rating, .project-priority, .project-status { text-align: left; } /* Align to content for badges */
+.project-rating { text-align: left; }
+
+/* Styles for inline edit dropdowns and checkbox */
+.project-priority-cell, .project-status-cell, .project-controls-cell {
+    display: flex;
+    align-items: center;
+    position: relative; /* For positioning the custom options container */
+}
+
+/* Common styles for custom select containers */
+.custom-select-container {
+    width: 100%;
+}
+
+.custom-select-selected {
+    padding: 6px 10px;
+    border: 1px solid var(--medium-gray);
+    border-radius: 4px;
+    background-color: #fff;
+    font-size: 0.85em;
+    width: 100%;
+    box-sizing: border-box;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.custom-select-selected::after { /* Dropdown arrow */
+    content: '▼';
+    font-size: 0.7em;
+    color: var(--dark-gray);
+}
+
+.custom-select-options {
+    display: none; /* Hidden by default */
+    position: absolute;
+    top: 100%; /* Position below the selected display */
+    left: 0;
+    right: 0;
+    background-color: #fff;
+    border: 1px solid var(--medium-gray);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    z-index: 10; /* Ensure it's above other elements */
+    max-height: 150px; /* Optional: if many options */
+    overflow-y: auto; /* Optional: if many options */
+}
+
+.custom-select-option {
+    padding: 8px 10px;
+    cursor: pointer;
+    font-size: 0.85em;
+    color: var(--text-color); /* Default text color */
+}
+
+.custom-select-option:hover {
+    background-color: var(--light-gray);
+}
+
+/* Specific background colors for priority options */
+.option-priority-high {
+    background-color: var(--danger-bg);
+    color: var(--danger-text);
+}
+.option-priority-high:hover {
+    background-color: #f5c6cb; /* Slightly darker hover for danger */
+}
+
+.option-priority-medium {
+    background-color: var(--warning-bg);
+    color: var(--warning-text);
+}
+.option-priority-medium:hover {
+    background-color: #ffeeba; /* Slightly darker hover for warning */
+}
+
+.option-priority-low {
+    background-color: var(--success-bg);
+    color: var(--success-text);
+}
+.option-priority-low:hover {
+    background-color: #c3e6cb; /* Slightly darker hover for success */
+}
+
+/* Specific background colors for status options */
+.option-status-potential {
+    background-color: #e6dfff; 
+    color: #492a79;
+}
+.option-status-potential:hover {
+    background-color: #d3c4f8; 
+}
+
+.option-status-active {
+    background-color: var(--info-bg);
+    color: var(--info-text);
+}
+.option-status-active:hover {
+    background-color: #b8daff; 
+}
+
+.option-status-on-hold {
+    background-color: #fff8e1; 
+    color: #6d4c41;
+}
+.option-status-on-hold:hover {
+    background-color: #ffecb3; 
+}
+
+.option-status-completed {
+    background-color: var(--success-bg);
+    color: var(--success-text);
+}
+.option-status-completed:hover {
+    background-color: #c3e6cb; 
+}
+
+.option-status-archived {
+    background-color: #f5f5f5; 
+    color: #616161;
+}
+.option-status-archived:hover {
+    background-color: #eeeeee; 
+}
+
+/* Keep existing background colors for the selected display (closed state) */
+.priority-selected-display.bg-priority-low {
+    background-color: var(--success-bg) !important;
+    color: var(--success-text) !important;
+}
+.priority-selected-display.bg-priority-medium {
+    background-color: var(--warning-bg) !important;
+    color: var(--warning-text) !important;
+}
+.priority-selected-display.bg-priority-high {
+    background-color: var(--danger-bg) !important;
+    color: var(--danger-text) !important;
+}
+
+/* Background colors for STAUTS selected display (closed state) */
+.status-selected-display.bg-status-potential {
+    background-color: #e6dfff !important;
+    color: #492a79 !important;
+}
+.status-selected-display.bg-status-active {
+    background-color: var(--info-bg) !important;
+    color: var(--info-text) !important;
+}
+.status-selected-display.bg-status-on-hold {
+    background-color: #fff8e1 !important;
+    color: #6d4c41 !important;
+}
+.status-selected-display.bg-status-completed {
+    background-color: var(--success-bg) !important;
+    color: var(--success-text) !important;
+}
+.status-selected-display.bg-status-archived {
+    background-color: #f5f5f5 !important;
+    color: #616161 !important;
+}
+
+.status-select.status-potential {
+     border-left: 3px solid #d3c4f8;
+}
+/* Add more specific border colors for status if desired */
+.status-select.status-active {
+    border-left: 3px solid var(--info-border);
+}
+.status-select.status-completed {
+    border-left: 3px solid var(--success-border);
+}
+.status-select.status-on-hold {
+    border-left: 3px solid #ffecb3; /* Light yellow from .status-on-hold badge */
+}
+.status-select.status-archived {
+    border-left: 3px solid #eeeeee; /* Light grey from .status-archived badge */
+}
+
+.inline-edit-checkbox {
+    width: 16px;
+    height: 16px;
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+.project-controls-cell {
+    justify-content: space-between;
+}
 
 .badge {
     padding: 4px 10px;
@@ -132,7 +347,7 @@ h2 { margin-bottom: 15px; }
     font-weight: 500;
     font-size: 0.85em;
     border: 1px solid transparent;
-    display: inline-block; /* Ensure badges respect padding */
+    display: inline-block;
 }
 .priority-high { background-color: var(--danger-bg); color: var(--danger-text); border-color: var(--danger-border);}
 .priority-medium { background-color: var(--warning-bg); color: var(--warning-text); border-color: var(--warning-border);}
@@ -143,28 +358,6 @@ h2 { margin-bottom: 15px; }
 .status-on-hold { background-color: #fff8e1; color: #6d4c41; border-color: #ffecb3;}
 .status-completed { background-color: #e8f5e9; color: #2e7d32; border-color: #c8e6c9;}
 .status-archived { background-color: #f5f5f5; color: #616161; border-color: #eeeeee;}
-
-.expand-icon { font-size: 1em; color: #6c757d; transition: transform 0.2s; text-align: center; }
-.project-card.expanded .expand-icon { transform: rotate(90deg); }
-
-.project-details-wrapper { display: none; }
-.project-card.expanded .project-details-wrapper { display: block; }
-.project-details-content {
-    padding: 15px 20px;
-    border-top: 1px dashed var(--medium-gray);
-}
-.project-details-content p { margin-top: 0; margin-bottom: 10px; line-height: 1.6; }
-.project-details-content h4 { font-size: 1em; font-weight: 600; margin-top: 15px; margin-bottom: 8px; }
-
-.task-list { list-style: none; padding: 0; }
-.task-list li { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #f1f3f5; }
-.task-list li:last-child { border-bottom: none; }
-.task-list input[type="checkbox"] { margin-right: 12px; width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary-color); }
-.task-list label { flex-grow: 1; cursor: pointer; font-size: 0.95em; }
-.task-list li.completed label { text-decoration: line-through; color: #868e96; }
-
-.add-task-area { margin-top: 10px; display: flex; gap: 10px; }
-.add-task-area input[type="text"] { flex-grow: 1; padding: 8px; border: 1px solid var(--medium-gray); border-radius: 4px; }
 
 /* Detailed Ratings */
 .detailed-ratings-toggle {
@@ -204,4 +397,174 @@ h2 { margin-bottom: 15px; }
     width: 100%; padding: 10px; border: 1px solid var(--medium-gray); border-radius: 4px; box-sizing: border-box;
 }
 .form-group textarea { min-height: 80px; resize: vertical; }
-.form-actions { text-align: right; margin-top: 20px; } 
+.form-actions { text-align: right; margin-top: 20px; }
+
+/* Add loading indicator styles */
+.loading-projects, .loading-tasks {
+    text-align: center;
+    padding: 15px;
+    color: #6c757d;
+}
+
+.loading-projects::after, .loading-tasks::after {
+    content: "...";
+    animation: loading-dots 1.5s infinite;
+}
+
+@keyframes loading-dots {
+    0% { content: "."; }
+    33% { content: ".."; }
+    66% { content: "..."; }
+}
+
+/* Error message styling */
+.error-message {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+    border: 1px solid #f5c6cb;
+}
+
+/* Background colors for select dropdowns based on value */
+.bg-priority-low {
+    background-color: var(--success-bg) !important; /* Important to override default select background */
+    color: var(--success-text) !important;
+}
+.bg-priority-medium {
+    background-color: var(--warning-bg) !important;
+    color: var(--warning-text) !important;
+}
+.bg-priority-high {
+    background-color: var(--danger-bg) !important;
+    color: var(--danger-text) !important;
+}
+
+.bg-status-potential {
+    background-color: #e6dfff !important;
+    color: #492a79 !important;
+}
+.bg-status-active {
+    background-color: var(--info-bg) !important;
+    color: var(--info-text) !important;
+}
+.bg-status-on-hold {
+    background-color: #fff8e1 !important;
+    color: #6d4c41 !important;
+}
+.bg-status-completed {
+    background-color: var(--success-bg) !important;
+    color: var(--success-text) !important;
+}
+.bg-status-archived {
+    background-color: #f5f5f5 !important;
+    color: #616161 !important;
+}
+
+/* Project Details Wrapper - initially hidden, shown when card is expanded */
+.project-details-wrapper {
+    /* display: none; -- Handled by JS inline style initially, and on toggle */
+    padding: 15px;
+    border-top: 1px solid var(--card-border-color);
+    background-color: #fdfdfd; /* Slightly different background for details section */
+    margin-top: -1px; /* Align with project-row border */
+}
+
+.project-card.expanded .project-details-wrapper {
+    /* display: block; -- Handled by JS inline style on toggle */
+}
+
+/* Styling for items within the details view */
+.project-detail-item {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px dashed var(--medium-gray);
+}
+.project-detail-item:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+.project-detail-item h3 {
+    font-size: 1.1em;
+    color: var(--primary-color);
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+.project-detail-item ul {
+    list-style-type: none;
+    padding-left: 0;
+}
+.project-detail-item ul li {
+    padding: 5px 0;
+}
+
+.add-task-form {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.add-task-form input[type="text"] {
+    flex-grow: 1;
+    padding: 8px;
+    border: 1px solid var(--medium-gray);
+    border-radius: 4px;
+}
+
+/* Task list specific styles */
+.task-list-bizdev li {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+.task-list-bizdev li:last-child {
+    border-bottom: none;
+}
+.task-list-bizdev input[type="checkbox"] {
+    margin-right: 10px;
+    cursor: pointer;
+    width: 16px; /* Consistent size */
+    height: 16px; /* Consistent size */
+}
+.task-list-bizdev label {
+    flex-grow: 1;
+    font-size: 0.95em;
+}
+.task-list-bizdev li.completed label {
+    text-decoration: line-through;
+    color: #888;
+}
+
+/* General Modal Overrides if needed */
+.project-collaboration-details label {
+    display: inline-flex; /* Align checkbox and label text nicely */
+    align-items: center;
+    gap: 5px;
+    font-weight: normal; /* Override potential .form-group label bolding if inside modal context */
+}
+
+/* Danger Zone for delete button */
+.danger-zone {
+    border-top: 1px solid var(--danger-border) !important; /* Make sure it overrides other detail item borders */
+    margin-top: 20px !important;
+    padding-top: 15px !important;
+}
+
+.danger-zone h3 {
+    color: var(--danger-text) !important;
+}
+
+.btn-danger {
+    background-color: var(--danger-bg);
+    color: var(--danger-text);
+    border-color: var(--danger-border);
+}
+
+.btn-danger:hover {
+    background-color: #e4606d; /* Darker red for hover */
+    border-color: #d32f2f;
+    color: white;
+} 
