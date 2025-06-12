@@ -14,8 +14,99 @@ const BOARD_COLUMNS = [
     { id: 'done', title: 'Done', color: '#e8f5e8' }
 ];
 
+// Global variables
 let currentProjectId = null;
-let boardData = {};
+let boardData = {
+    'todo': [],
+    'doing': [],
+    'waiting': [],
+    'done': []
+};
+let isEmbeddedMode = false;
+let embeddedContainer = null;
+
+// Initialize embedded Kanban board
+window.initEmbeddedKanban = function(project, container) {
+    isEmbeddedMode = true;
+    embeddedContainer = container;
+    currentProjectId = project.id;
+    
+    // Create kanban board HTML structure inside the container
+    const kanbanHTML = `
+        <div class="kanban-board">
+            <div class="kanban-column" data-status="todo">
+                <div class="column-header todo-header">
+                    <h3>To Do</h3>
+                    <button class="add-card-btn" data-status="todo">+ Add Card</button>
+                </div>
+                <div class="cards-container" data-status="todo"></div>
+            </div>
+            <div class="kanban-column" data-status="doing">
+                <div class="column-header doing-header">
+                    <h3>Doing</h3>
+                    <button class="add-card-btn" data-status="doing">+ Add Card</button>
+                </div>
+                <div class="cards-container" data-status="doing"></div>
+            </div>
+            <div class="kanban-column" data-status="waiting">
+                <div class="column-header waiting-header">
+                    <h3>Waiting Feedback</h3>
+                    <button class="add-card-btn" data-status="waiting">+ Add Card</button>
+                </div>
+                <div class="cards-container" data-status="waiting"></div>
+            </div>
+            <div class="kanban-column" data-status="done">
+                <div class="column-header done-header">
+                    <h3>Done</h3>
+                    <button class="add-card-btn" data-status="done">+ Add Card</button>
+                </div>
+                <div class="cards-container" data-status="done"></div>
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = kanbanHTML;
+    
+    // Load tasks and render board
+    loadTasksAndRender();
+};
+
+// Show Kanban board (existing modal mode)
+window.showKanbanBoard = function(project) {
+    isEmbeddedMode = false;
+    embeddedContainer = null;
+    currentProjectId = project.id;
+    
+    const kanbanView = document.getElementById('kanban-view');
+    if (!kanbanView) {
+        console.error('Kanban view container not found');
+        return;
+    }
+    
+    // Update project title
+    const projectTitle = kanbanView.querySelector('.kanban-header h2');
+    if (projectTitle) {
+        projectTitle.textContent = `${project.title || project.name || 'Project'} - Kanban Board`;
+    }
+    
+    // Show the kanban view
+    kanbanView.style.display = 'block';
+    
+    // Load tasks and render board
+    loadTasksAndRender();
+};
+
+// Hide Kanban board (modal mode only)
+window.hideKanbanBoard = function() {
+    if (!isEmbeddedMode) {
+        const kanbanView = document.getElementById('kanban-view');
+        if (kanbanView) {
+            kanbanView.style.display = 'none';
+        }
+    }
+    currentProjectId = null;
+    boardData = { 'todo': [], 'doing': [], 'waiting': [], 'done': [] };
+};
 
 // Initialize Kanban board
 export async function initKanbanBoard(projectId) {
@@ -56,19 +147,56 @@ async function loadBoardData() {
     }
 }
 
-// Render the complete Kanban board
-function renderBoard() {
-    const container = document.getElementById('kanban-container');
-    if (!container) {
-        console.error('Kanban container not found');
-        return;
-    }
+// Load tasks and render board
+async function loadTasksAndRender() {
+    if (!currentProjectId) return;
     
-    container.innerHTML = `
-        <div class="kanban-board">
-            ${BOARD_COLUMNS.map(column => renderColumn(column)).join('')}
-        </div>
-    `;
+    try {
+        showStatus('Loading tasks...', false);
+        const tasks = await taskService.getTasksByProjectId(currentProjectId, null);
+        
+        // Organize tasks by status
+        boardData = {
+            'todo': [],
+            'doing': [],
+            'waiting': [],
+            'done': []
+        };
+        
+        tasks.forEach(task => {
+            const status = task.status || 'todo';
+            if (boardData[status]) {
+                boardData[status].push(task);
+            } else {
+                boardData['todo'].push(task); // Fallback to todo
+            }
+        });
+        
+        renderBoard();
+        setupEventListeners();
+        showStatus('Tasks loaded successfully', false);
+    } catch (error) {
+        console.error('Error loading tasks:', error);
+        showStatus('Error loading tasks: ' + (error.message || 'Unknown error'), true);
+    }
+}
+
+// Render the board
+function renderBoard() {
+    const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
+    if (!boardContainer) return;
+    
+    Object.keys(boardData).forEach(status => {
+        const cardsContainer = boardContainer.querySelector(`.cards-container[data-status="${status}"]`);
+        if (cardsContainer) {
+            cardsContainer.innerHTML = '';
+            boardData[status].forEach(task => {
+                const cardElement = document.createElement('div');
+                cardElement.innerHTML = renderCard(task);
+                cardsContainer.appendChild(cardElement.firstElementChild);
+            });
+        }
+    });
 }
 
 // Render a single column
@@ -276,74 +404,70 @@ async function moveCard(taskId, newStatus) {
     }
 }
 
-// Setup event listeners for the board
+// Setup event listeners
 function setupEventListeners() {
+    const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
+    if (!boardContainer) return;
+    
+    // Remove existing listeners to prevent duplicates
+    const existingListeners = boardContainer.querySelectorAll('[data-listener-attached]');
+    existingListeners.forEach(element => {
+        element.removeAttribute('data-listener-attached');
+    });
+    
     // Add card buttons
-    document.querySelectorAll('.add-card-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const status = e.target.dataset.status;
-            addCard(status);
-        });
+    boardContainer.querySelectorAll('.add-card-btn').forEach(btn => {
+        if (!btn.hasAttribute('data-listener-attached')) {
+            btn.setAttribute('data-listener-attached', 'true');
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const status = btn.dataset.status;
+                addCard(status);
+            });
+        }
     });
     
-    // Edit card buttons
-    document.querySelectorAll('.edit-card-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const taskId = parseInt(e.target.dataset.taskId);
-            editCard(taskId);
-        });
+    // Edit and delete buttons
+    boardContainer.querySelectorAll('.edit-card-btn').forEach(btn => {
+        if (!btn.hasAttribute('data-listener-attached')) {
+            btn.setAttribute('data-listener-attached', 'true');
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const taskId = btn.dataset.taskId;
+                editCard(taskId);
+            });
+        }
     });
     
-    // Delete card buttons
-    document.querySelectorAll('.delete-card-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const taskId = parseInt(e.target.dataset.taskId);
-            deleteCard(taskId);
-        });
+    boardContainer.querySelectorAll('.delete-card-btn').forEach(btn => {
+        if (!btn.hasAttribute('data-listener-attached')) {
+            btn.setAttribute('data-listener-attached', 'true');
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const taskId = btn.dataset.taskId;
+                deleteCard(taskId);
+            });
+        }
     });
     
-    // Drag and drop
-    setupDragAndDrop();
-}
-
-// Setup drag and drop functionality
-function setupDragAndDrop() {
-    let draggedCard = null;
-    
-    // Card drag start
-    document.querySelectorAll('.kanban-card').forEach(card => {
-        card.addEventListener('dragstart', (e) => {
-            draggedCard = e.target;
-            e.target.style.opacity = '0.5';
-        });
-        
-        card.addEventListener('dragend', (e) => {
-            e.target.style.opacity = '1';
-            draggedCard = null;
-        });
+    // Drag and drop for cards
+    boardContainer.querySelectorAll('.kanban-card').forEach(card => {
+        if (!card.hasAttribute('data-listener-attached')) {
+            card.setAttribute('data-listener-attached', 'true');
+            card.addEventListener('dragstart', handleDragStart);
+            card.addEventListener('dragend', handleDragEnd);
+        }
     });
     
-    // Column drop zones
-    document.querySelectorAll('.column-body').forEach(column => {
-        column.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            column.classList.add('drag-over');
-        });
-        
-        column.addEventListener('dragleave', (e) => {
-            column.classList.remove('drag-over');
-        });
-        
-        column.addEventListener('drop', (e) => {
-            e.preventDefault();
-            column.classList.remove('drag-over');
-            
-            if (draggedCard) {
-                const taskId = parseInt(draggedCard.dataset.taskId);
-                const newStatus = column.dataset.status;
-                moveCard(taskId, newStatus);
-            }
-        });
+    // Drop zones
+    boardContainer.querySelectorAll('.cards-container').forEach(container => {
+        if (!container.hasAttribute('data-listener-attached')) {
+            container.setAttribute('data-listener-attached', 'true');
+            container.addEventListener('dragover', handleDragOver);
+            container.addEventListener('drop', handleDrop);
+            container.addEventListener('dragenter', handleDragEnter);
+            container.addEventListener('dragleave', handleDragLeave);
+        }
     });
 }
 
@@ -366,4 +490,47 @@ function formatDate(dateString) {
 export const kanbanBoard = {
     init: initKanbanBoard,
     refresh: loadBoardData
-}; 
+};
+
+// Drag and drop handlers
+let draggedCard = null;
+
+function handleDragStart(e) {
+    draggedCard = e.target;
+    e.target.style.opacity = '0.5';
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', e.target.outerHTML);
+}
+
+function handleDragEnd(e) {
+    e.target.style.opacity = '1';
+    draggedCard = null;
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDragEnter(e) {
+    e.preventDefault();
+    e.target.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+    e.target.classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    e.target.classList.remove('drag-over');
+    
+    if (draggedCard) {
+        const taskId = draggedCard.dataset.taskId;
+        const newStatus = e.target.dataset.status;
+        
+        if (taskId && newStatus) {
+            moveCard(taskId, newStatus);
+        }
+    }
+} 

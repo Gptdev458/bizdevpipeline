@@ -704,17 +704,7 @@ function createProjectCard(project) {
                 return;
             }
 
-            // For collaboration projects, go directly to Kanban board
-            if (project.isIanCollaboration) {
-                if (window.showKanbanBoard) {
-                    window.showKanbanBoard(project);
-                } else {
-                    console.error('showKanbanBoard function not available');
-                }
-                return;
-            }
-
-            // For regular projects, toggle expansion
+            // For all projects, toggle expansion normally
             projectCard.classList.toggle('expanded');
             const detailsWrapper = projectCard.querySelector('.project-details-wrapper');
             const currentExpandIcon = projectRow.querySelector('.expand-icon'); // Get the icon
@@ -853,87 +843,125 @@ function createProjectDetails(project, projectCard) {
         // 3. Tasks Pane
         const tasksPane = panesContainer.querySelector('#tasks-pane-' + project.id);
         if (tasksPane) {
-            const tasksContainer = document.createElement('div');
-            tasksContainer.className = 'project-tasks-bizdev project-detail-item';
-            
-            // Tasks header with Kanban board button
-            const tasksHeader = document.createElement('div');
-            tasksHeader.style.display = 'flex';
-            tasksHeader.style.justifyContent = 'space-between';
-            tasksHeader.style.alignItems = 'center';
-            tasksHeader.style.marginBottom = '15px';
-            
-            const tasksTitle = document.createElement('h3');
-            tasksTitle.textContent = 'Tasks';
-            tasksTitle.style.margin = '0';
-            
-            const kanbanButton = document.createElement('button');
-            kanbanButton.textContent = '📋 Kanban Board';
-            kanbanButton.className = 'btn btn-primary btn-sm';
-            kanbanButton.style.fontSize = '12px';
-            kanbanButton.addEventListener('click', () => {
-                if (window.showKanbanBoard) {
-                    window.showKanbanBoard(project);
-                } else {
-                    console.error('showKanbanBoard function not available');
-                }
-            });
-            
-            tasksHeader.appendChild(tasksTitle);
-            tasksHeader.appendChild(kanbanButton);
-            tasksContainer.appendChild(tasksHeader);
-            
-            const taskListEl = document.createElement('ul');
-            taskListEl.className = 'task-list-bizdev';
-            taskListEl.innerHTML = '<li>Loading tasks...</li>';
-            tasksContainer.appendChild(taskListEl);
-
-            const addTaskForm = document.createElement('form');
-            addTaskForm.className = 'add-task-form top-level-task-form';
-            const taskInput = document.createElement('input');
-            taskInput.type = 'text';
-            taskInput.placeholder = 'New task...';
-            taskInput.required = true;
-            const addTaskButton = document.createElement('button');
-            addTaskButton.type = 'submit';
-            addTaskButton.textContent = 'Add Task';
-            addTaskButton.className = 'btn btn-secondary btn-sm';
-            addTaskForm.appendChild(taskInput);
-            addTaskForm.appendChild(addTaskButton);
-            tasksContainer.appendChild(addTaskForm);
-            
-            addTaskForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const taskText = taskInput.value.trim();
-                if (taskText) {
-                    try {
-                        await taskService.createTask(project.id, { text: taskText, completed: false, parentId: null });
-                        taskInput.value = ''; 
-                        const updatedTasks = await taskService.getTasksByProjectId(project.id, null);
-                        await renderTasks(updatedTasks, taskListEl, project.id, null, 0);
-                        showStatus('Task added successfully!', false);
-                    } catch (error) {
-                        console.error('Error adding task:', error);
-                        showStatus('Failed to add task: ' + (error.message || 'Unknown error'), true);
+            // For collaboration projects, show embedded Kanban board
+            if (project.isIanCollaboration) {
+                const kanbanContainer = document.createElement('div');
+                kanbanContainer.className = 'embedded-kanban-container';
+                kanbanContainer.id = 'embedded-kanban-' + project.id;
+                
+                const kanbanTitle = document.createElement('h3');
+                kanbanTitle.textContent = 'Project Tasks - Kanban Board';
+                kanbanTitle.style.margin = '0 0 15px 0';
+                
+                kanbanContainer.appendChild(kanbanTitle);
+                tasksPane.appendChild(kanbanContainer);
+                
+                // Initialize embedded Kanban board when tab becomes active
+                const initKanban = () => {
+                    if (window.initEmbeddedKanban) {
+                        window.initEmbeddedKanban(project, kanbanContainer);
+                    } else {
+                        console.error('initEmbeddedKanban function not available');
+                        kanbanContainer.innerHTML = '<p>Kanban board loading...</p>';
                     }
+                };
+                
+                // Initialize immediately if Tasks tab is the first tab
+                if (firstVisibleButton && firstVisibleButton.dataset.paneTarget === 'tasks-pane-' + project.id) {
+                    setTimeout(initKanban, 100); // Small delay to ensure DOM is ready
                 }
-            });
-            tasksPane.appendChild(tasksContainer);
+                
+                // Initialize when Tasks tab is clicked
+                nav.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('details-nav-button') && 
+                        e.target.dataset.paneTarget === 'tasks-pane-' + project.id) {
+                        setTimeout(initKanban, 100);
+                    }
+                });
+            } else {
+                // For regular projects, show traditional task list
+                const tasksContainer = document.createElement('div');
+                tasksContainer.className = 'project-tasks-bizdev project-detail-item';
+                
+                // Tasks header with Kanban board button
+                const tasksHeader = document.createElement('div');
+                tasksHeader.style.display = 'flex';
+                tasksHeader.style.justifyContent = 'space-between';
+                tasksHeader.style.alignItems = 'center';
+                tasksHeader.style.marginBottom = '15px';
+                
+                const tasksTitle = document.createElement('h3');
+                tasksTitle.textContent = 'Tasks';
+                tasksTitle.style.margin = '0';
+                
+                const kanbanButton = document.createElement('button');
+                kanbanButton.textContent = '📋 Kanban Board';
+                kanbanButton.className = 'btn btn-primary btn-sm';
+                kanbanButton.style.fontSize = '12px';
+                kanbanButton.addEventListener('click', () => {
+                    if (window.showKanbanBoard) {
+                        window.showKanbanBoard(project);
+                    } else {
+                        console.error('showKanbanBoard function not available');
+                    }
+                });
+                
+                tasksHeader.appendChild(tasksTitle);
+                tasksHeader.appendChild(kanbanButton);
+                tasksContainer.appendChild(tasksHeader);
+                
+                const taskListEl = document.createElement('ul');
+                taskListEl.className = 'task-list-bizdev';
+                taskListEl.innerHTML = '<li>Loading tasks...</li>';
+                tasksContainer.appendChild(taskListEl);
 
-            // Fetch and render tasks (existing logic, ensured taskListEl is from the correct pane)
-            if (project && project.id && taskService && typeof taskService.getTasksByProjectId === 'function') {
-                 taskService.getTasksByProjectId(project.id, null) // Fetch top-level tasks initially
-                    .then(tasks => {
-                        if (taskListEl && taskListEl.isConnected) { // Check if still in DOM
-                            renderTasks(tasks, taskListEl, project.id, null, 0); // Initial render with level 0
+                const addTaskForm = document.createElement('form');
+                addTaskForm.className = 'add-task-form top-level-task-form';
+                const taskInput = document.createElement('input');
+                taskInput.type = 'text';
+                taskInput.placeholder = 'New task...';
+                taskInput.required = true;
+                const addTaskButton = document.createElement('button');
+                addTaskButton.type = 'submit';
+                addTaskButton.textContent = 'Add Task';
+                addTaskButton.className = 'btn btn-secondary btn-sm';
+                addTaskForm.appendChild(taskInput);
+                addTaskForm.appendChild(addTaskButton);
+                tasksContainer.appendChild(addTaskForm);
+                
+                addTaskForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const taskText = taskInput.value.trim();
+                    if (taskText) {
+                        try {
+                            await taskService.createTask(project.id, { text: taskText, completed: false, parentId: null });
+                            taskInput.value = ''; 
+                            const updatedTasks = await taskService.getTasksByProjectId(project.id, null);
+                            await renderTasks(updatedTasks, taskListEl, project.id, null, 0);
+                            showStatus('Task added successfully!', false);
+                        } catch (error) {
+                            console.error('Error adding task:', error);
+                            showStatus('Failed to add task: ' + (error.message || 'Unknown error'), true);
                         }
-                    })
-                    .catch(error => {
-                        console.error(`Error fetching tasks for project ${project.id} in new tab structure:`, error);
-                        if (taskListEl && taskListEl.isConnected) {
-                           taskListEl.innerHTML = '<li><i>Error loading tasks. Check console.</i></li>';
-                        }
-                    });
+                    }
+                });
+                tasksPane.appendChild(tasksContainer);
+
+                // Fetch and render tasks (existing logic, ensured taskListEl is from the correct pane)
+                if (project && project.id && taskService && typeof taskService.getTasksByProjectId === 'function') {
+                     taskService.getTasksByProjectId(project.id, null) // Fetch top-level tasks initially
+                        .then(tasks => {
+                            if (taskListEl && taskListEl.isConnected) { // Check if still in DOM
+                                renderTasks(tasks, taskListEl, project.id, null, 0); // Initial render with level 0
+                            }
+                        })
+                        .catch(error => {
+                            console.error(`Error fetching tasks for project ${project.id} in new tab structure:`, error);
+                            if (taskListEl && taskListEl.isConnected) {
+                               taskListEl.innerHTML = '<li><i>Error loading tasks. Check console.</i></li>';
+                            }
+                        });
+                }
             }
         }
 
