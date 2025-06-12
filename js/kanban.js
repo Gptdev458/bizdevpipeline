@@ -413,7 +413,12 @@ function renderBoard(instance) {
             instance.boardData[status].forEach(task => {
                 const cardElement = document.createElement('div');
                 cardElement.innerHTML = renderCard(task);
-                cardsContainer.appendChild(cardElement.firstElementChild);
+                const card = cardElement.firstElementChild;
+                
+                // Attach drag listeners to the newly created card
+                attachDragListeners(card);
+                
+                cardsContainer.appendChild(card);
             });
         } else {
             console.log(`Cards container for status ${status} not found`);
@@ -738,15 +743,7 @@ function setupEventListeners(instance) {
         return;
     }
     
-    // Remove existing listeners to prevent duplicates
-    const existingListeners = boardContainer.querySelectorAll('[data-listener-attached]');
-    console.log('Removing existing listeners:', existingListeners.length);
-    existingListeners.forEach(element => {
-        element.removeAttribute('data-listener-attached');
-    });
-    
-    // Use event delegation instead of direct listeners - this is more reliable
-    // Remove any existing delegated listeners first
+    // Remove existing click listeners to prevent duplicates
     boardContainer.removeEventListener('click', handleBoardClick);
     
     // Add single delegated click handler for all buttons
@@ -755,32 +752,7 @@ function setupEventListeners(instance) {
     
     console.log('Event delegation set up on board container');
     
-    // Still set up drag and drop on individual cards
-    const cards = boardContainer.querySelectorAll('.kanban-card');
-    console.log('Found kanban cards:', cards.length);
-    
-    cards.forEach((card, index) => {
-        console.log(`Card ${index}:`, {
-            element: card,
-            draggable: card.draggable,
-            taskId: card.dataset.taskId,
-            hasListener: card.hasAttribute('data-listener-attached')
-        });
-        
-        if (!card.hasAttribute('data-listener-attached')) {
-            card.setAttribute('data-listener-attached', 'true');
-            card.addEventListener('dragstart', (e) => {
-                console.log('Dragstart event triggered for card:', card.dataset.taskId);
-                handleDragStart(e);
-            });
-            card.addEventListener('dragend', (e) => {
-                console.log('Dragend event triggered for card:', card.dataset.taskId);
-                handleDragEnd(e);
-            });
-        }
-    });
-    
-    // Drop zones
+    // Set up drop zones (not individual card listeners, those are handled in renderBoard)
     const containers = boardContainer.querySelectorAll('.cards-container');
     console.log('Found drop containers:', containers.length);
     
@@ -788,16 +760,13 @@ function setupEventListeners(instance) {
         console.log(`Container ${index}:`, {
             element: container,
             status: container.dataset.status,
-            hasListener: container.hasAttribute('data-listener-attached')
+            hasListener: container.hasAttribute('data-drop-listeners-attached')
         });
         
-        if (!container.hasAttribute('data-listener-attached')) {
-            container.setAttribute('data-listener-attached', 'true');
+        if (!container.hasAttribute('data-drop-listeners-attached')) {
+            container.setAttribute('data-drop-listeners-attached', 'true');
             container.addEventListener('dragover', handleDragOver);
-            container.addEventListener('drop', (e) => {
-                console.log('Drop event triggered on container:', container.dataset.status);
-                handleDrop(e);
-            });
+            container.addEventListener('drop', handleDrop);
             container.addEventListener('dragenter', handleDragEnter);
             container.addEventListener('dragleave', handleDragLeave);
         }
@@ -1645,4 +1614,57 @@ window.testMultipleBoardsFix = function() {
     }
     
     console.log('=== TEST COMPLETE ===');
-}; 
+};
+
+// Test drag listeners on cards
+window.testDragListeners = function() {
+    console.log('=== TESTING DRAG LISTENERS ===');
+    
+    // Find any Kanban board
+    const allCards = document.querySelectorAll('.kanban-card');
+    console.log('Total cards found:', allCards.length);
+    
+    allCards.forEach((card, index) => {
+        const hasDataAttr = card.hasAttribute('data-listener-attached');
+        const taskId = card.dataset.taskId;
+        const projectId = card.dataset.projectId;
+        
+        console.log(`Card ${index}:`, {
+            taskId: taskId,
+            projectId: projectId,
+            draggable: card.draggable,
+            hasListenerAttr: hasDataAttr,
+            hasOnDragStart: card.ondragstart !== null,
+            eventListenersCount: getEventListeners ? getEventListeners(card) : 'N/A'
+        });
+        
+        // Test if dragstart works
+        console.log(`Testing dragstart on card ${index}...`);
+        try {
+            const event = new DragEvent('dragstart', {
+                bubbles: true,
+                cancelable: true,
+                dataTransfer: new DataTransfer()
+            });
+            const result = card.dispatchEvent(event);
+            console.log(`Dragstart dispatch result:`, result);
+        } catch (e) {
+            console.log(`Dragstart test failed:`, e.message);
+        }
+    });
+    
+    console.log('=== TEST COMPLETE ===');
+};
+
+// Fix: Attach drag listeners to individual card
+function attachDragListeners(card) {
+    if (!card.hasAttribute('data-drag-listeners-attached')) {
+        card.setAttribute('data-drag-listeners-attached', 'true');
+        card.setAttribute('draggable', 'true');
+        
+        card.addEventListener('dragstart', handleDragStart);
+        card.addEventListener('dragend', handleDragEnd);
+        
+        console.log('Attached drag listeners to card:', card.dataset.taskId);
+    }
+} 
