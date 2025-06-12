@@ -1529,4 +1529,43 @@ h2 { margin-bottom: 15px; }
 .waiting-header .add-card-btn:hover {
     background-color: rgba(0,0,0,0.2);
     color: #212529;
+}
+
+/* IMPORTANT: Override for embedded Kanban to ensure buttons are always visible */
+.embedded-kanban-container .todo-header .add-card-btn,
+.embedded-kanban-container .doing-header .add-card-btn,
+.embedded-kanban-container .done-header .add-card-btn {
+    background-color: rgba(255,255,255,0.95) !important;
+    color: #212529 !important;
+    border: 1px solid rgba(255,255,255,0.5) !important;
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+}
+
+.embedded-kanban-container .waiting-header .add-card-btn {
+    background-color: rgba(0,0,0,0.15) !important;
+    color: #212529 !important;
+    border: 1px solid rgba(0,0,0,0.3) !important;
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+}
+
+.embedded-kanban-container .todo-header .add-card-btn:hover,
+.embedded-kanban-container .doing-header .add-card-btn:hover,
+.embedded-kanban-container .done-header .add-card-btn:hover {
+    background-color: white !important;
+    color: #212529 !important;
+    transform: none !important;
+}
+
+.embedded-kanban-container .waiting-header .add-card-btn:hover {
+    background-color: rgba(0,0,0,0.25) !important;
+    color: #212529 !important;
+    transform: none !important;
 } 
