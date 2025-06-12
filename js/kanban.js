@@ -535,11 +535,21 @@ function setupEventListeners() {
 function findTaskById(taskId) {
     console.log('Finding task by ID:', taskId, 'in data:', boardData);
     
-    // Handle both string and number IDs
-    const numericId = parseInt(taskId);
-    
+    // Handle both string and number IDs - but don't convert UUIDs to numbers
     for (const columnId of Object.keys(boardData)) {
-        const task = boardData[columnId].find(t => t.id === taskId || t.id === numericId);
+        const task = boardData[columnId].find(t => {
+            // Compare as strings first, then try numeric comparison if both are numbers
+            if (t.id === taskId) return true;
+            
+            // Only do numeric comparison if both values can be converted to numbers
+            const numericTaskId = parseInt(taskId);
+            const numericTId = parseInt(t.id);
+            if (!isNaN(numericTaskId) && !isNaN(numericTId) && numericTId === numericTaskId) {
+                return true;
+            }
+            
+            return false;
+        });
         if (task) {
             console.log('Found task:', task);
             return task;
@@ -658,9 +668,8 @@ function handleDrop(e) {
         console.log('Drop event:', { taskId, newStatus, draggedCard, target: e.target });
         
         if (taskId && newStatus) {
-            // Convert taskId to number if it's a string
-            const numericTaskId = parseInt(taskId);
-            moveCard(numericTaskId, newStatus);
+            // Don't convert UUID strings to numbers - keep as string
+            moveCard(taskId, newStatus);
         } else {
             console.error('Missing taskId or newStatus:', { taskId, newStatus });
         }
