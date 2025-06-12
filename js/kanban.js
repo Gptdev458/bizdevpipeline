@@ -422,17 +422,27 @@ async function moveCard(taskId, newStatus) {
 
 // Setup event listeners
 function setupEventListeners() {
+    console.log('setupEventListeners called, isEmbeddedMode:', isEmbeddedMode);
+    
     const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
-    if (!boardContainer) return;
+    console.log('boardContainer:', boardContainer);
+    
+    if (!boardContainer) {
+        console.error('No board container found!');
+        return;
+    }
     
     // Remove existing listeners to prevent duplicates
     const existingListeners = boardContainer.querySelectorAll('[data-listener-attached]');
+    console.log('Removing existing listeners:', existingListeners.length);
     existingListeners.forEach(element => {
         element.removeAttribute('data-listener-attached');
     });
     
     // Add card buttons
-    boardContainer.querySelectorAll('.add-card-btn').forEach(btn => {
+    const addButtons = boardContainer.querySelectorAll('.add-card-btn');
+    console.log('Found add buttons:', addButtons.length);
+    addButtons.forEach(btn => {
         if (!btn.hasAttribute('data-listener-attached')) {
             btn.setAttribute('data-listener-attached', 'true');
             btn.addEventListener('click', (e) => {
@@ -444,7 +454,11 @@ function setupEventListeners() {
     });
     
     // Edit and delete buttons
-    boardContainer.querySelectorAll('.edit-card-btn').forEach(btn => {
+    const editButtons = boardContainer.querySelectorAll('.edit-card-btn');
+    const deleteButtons = boardContainer.querySelectorAll('.delete-card-btn');
+    console.log('Found edit buttons:', editButtons.length, 'delete buttons:', deleteButtons.length);
+    
+    editButtons.forEach(btn => {
         if (!btn.hasAttribute('data-listener-attached')) {
             btn.setAttribute('data-listener-attached', 'true');
             btn.addEventListener('click', (e) => {
@@ -455,7 +469,7 @@ function setupEventListeners() {
         }
     });
     
-    boardContainer.querySelectorAll('.delete-card-btn').forEach(btn => {
+    deleteButtons.forEach(btn => {
         if (!btn.hasAttribute('data-listener-attached')) {
             btn.setAttribute('data-listener-attached', 'true');
             btn.addEventListener('click', (e) => {
@@ -467,24 +481,54 @@ function setupEventListeners() {
     });
     
     // Drag and drop for cards
-    boardContainer.querySelectorAll('.kanban-card').forEach(card => {
+    const cards = boardContainer.querySelectorAll('.kanban-card');
+    console.log('Found kanban cards:', cards.length);
+    
+    cards.forEach((card, index) => {
+        console.log(`Card ${index}:`, {
+            element: card,
+            draggable: card.draggable,
+            taskId: card.dataset.taskId,
+            hasListener: card.hasAttribute('data-listener-attached')
+        });
+        
         if (!card.hasAttribute('data-listener-attached')) {
             card.setAttribute('data-listener-attached', 'true');
-            card.addEventListener('dragstart', handleDragStart);
-            card.addEventListener('dragend', handleDragEnd);
+            card.addEventListener('dragstart', (e) => {
+                console.log('Dragstart event triggered for card:', card.dataset.taskId);
+                handleDragStart(e);
+            });
+            card.addEventListener('dragend', (e) => {
+                console.log('Dragend event triggered for card:', card.dataset.taskId);
+                handleDragEnd(e);
+            });
         }
     });
     
     // Drop zones
-    boardContainer.querySelectorAll('.cards-container').forEach(container => {
+    const containers = boardContainer.querySelectorAll('.cards-container');
+    console.log('Found drop containers:', containers.length);
+    
+    containers.forEach((container, index) => {
+        console.log(`Container ${index}:`, {
+            element: container,
+            status: container.dataset.status,
+            hasListener: container.hasAttribute('data-listener-attached')
+        });
+        
         if (!container.hasAttribute('data-listener-attached')) {
             container.setAttribute('data-listener-attached', 'true');
             container.addEventListener('dragover', handleDragOver);
-            container.addEventListener('drop', handleDrop);
+            container.addEventListener('drop', (e) => {
+                console.log('Drop event triggered on container:', container.dataset.status);
+                handleDrop(e);
+            });
             container.addEventListener('dragenter', handleDragEnter);
             container.addEventListener('dragleave', handleDragLeave);
         }
     });
+    
+    console.log('setupEventListeners completed');
 }
 
 // Helper functions
@@ -515,6 +559,63 @@ function formatDate(dateString) {
 export const kanbanBoard = {
     init: initKanbanBoard,
     refresh: loadBoardData
+};
+
+// Test function for debugging drag and drop
+window.testKanbanDragDrop = function() {
+    console.log('=== TESTING KANBAN DRAG AND DROP ===');
+    
+    const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
+    console.log('Board container:', boardContainer);
+    
+    if (!boardContainer) {
+        console.error('No board container found!');
+        return;
+    }
+    
+    const cards = boardContainer.querySelectorAll('.kanban-card');
+    console.log('Found cards:', cards.length);
+    
+    cards.forEach((card, index) => {
+        console.log(`Card ${index}:`, {
+            draggable: card.draggable,
+            taskId: card.dataset.taskId,
+            innerHTML: card.innerHTML.substring(0, 100) + '...',
+            classList: Array.from(card.classList)
+        });
+    });
+    
+    const containers = boardContainer.querySelectorAll('.cards-container');
+    console.log('Found containers:', containers.length);
+    
+    containers.forEach((container, index) => {
+        console.log(`Container ${index}:`, {
+            status: container.dataset.status,
+            childrenCount: container.children.length
+        });
+    });
+    
+    console.log('Current board data:', boardData);
+    console.log('Current project ID:', currentProjectId);
+    console.log('Is embedded mode:', isEmbeddedMode);
+    
+    // Try to manually trigger drag and drop
+    if (cards.length > 0) {
+        const firstCard = cards[0];
+        console.log('Testing drag event on first card...');
+        
+        // Simulate dragstart
+        const dragStartEvent = new DragEvent('dragstart', {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer: new DataTransfer()
+        });
+        
+        firstCard.dispatchEvent(dragStartEvent);
+        console.log('Drag start event dispatched');
+    }
+    
+    console.log('=== TEST COMPLETE ===');
 };
 
 // Drag and drop handlers
