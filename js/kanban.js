@@ -350,8 +350,18 @@ async function deleteCard(taskId) {
 
 // Move card to different column
 async function moveCard(taskId, newStatus) {
+    console.log('moveCard called with:', { taskId, newStatus, currentData: boardData });
+    
     const task = findTaskById(taskId);
-    if (!task || task.status === newStatus) return;
+    if (!task) {
+        console.error('Task not found:', taskId);
+        return;
+    }
+    
+    if (task.status === newStatus) {
+        console.log('Task already in target status');
+        return;
+    }
     
     try {
         showStatus('Moving card...', false);
@@ -362,10 +372,14 @@ async function moveCard(taskId, newStatus) {
             position: boardData[newStatus] ? boardData[newStatus].length : 0
         };
         
+        console.log('Updating task with:', updateData);
+        
         await taskService.updateTask(currentProjectId, taskId, updateData);
         
         // Update board data
         const oldStatus = task.status || 'todo';
+        console.log('Moving from', oldStatus, 'to', newStatus);
+        
         if (boardData[oldStatus]) {
             boardData[oldStatus] = boardData[oldStatus].filter(t => t.id !== taskId);
         }
@@ -375,6 +389,8 @@ async function moveCard(taskId, newStatus) {
             boardData[newStatus] = [];
         }
         boardData[newStatus].push(task);
+        
+        console.log('Updated board data:', boardData);
         
         // Re-render the board
         renderBoard();
@@ -473,10 +489,19 @@ function setupEventListeners() {
 
 // Helper functions
 function findTaskById(taskId) {
+    console.log('Finding task by ID:', taskId, 'in data:', boardData);
+    
+    // Handle both string and number IDs
+    const numericId = parseInt(taskId);
+    
     for (const columnId of Object.keys(boardData)) {
-        const task = boardData[columnId].find(t => t.id === taskId);
-        if (task) return task;
+        const task = boardData[columnId].find(t => t.id === taskId || t.id === numericId);
+        if (task) {
+            console.log('Found task:', task);
+            return task;
+        }
     }
+    console.log('Task not found');
     return null;
 }
 
@@ -529,8 +554,14 @@ function handleDrop(e) {
         const taskId = draggedCard.dataset.taskId;
         const newStatus = e.target.dataset.status;
         
+        console.log('Drop event:', { taskId, newStatus, draggedCard, target: e.target });
+        
         if (taskId && newStatus) {
-            moveCard(taskId, newStatus);
+            // Convert taskId to number if it's a string
+            const numericTaskId = parseInt(taskId);
+            moveCard(numericTaskId, newStatus);
+        } else {
+            console.error('Missing taskId or newStatus:', { taskId, newStatus });
         }
     }
 } 

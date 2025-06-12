@@ -1456,4 +1456,77 @@ h2 { margin-bottom: 15px; }
 .kanban-card.dragging {
     opacity: 0.5;
     transform: rotate(5deg);
+}
+
+/* Kanban Column Header Colors */
+.todo-header {
+    background: linear-gradient(135deg, #6c757d, #5a6268);
+    color: white;
+}
+
+.doing-header {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: white;
+}
+
+.waiting-header {
+    background: linear-gradient(135deg, #ffc107, #e0a800);
+    color: #212529;
+}
+
+.done-header {
+    background: linear-gradient(135deg, #28a745, #1e7e34);
+    color: white;
+}
+
+/* Apply to both regular and embedded Kanban boards */
+.column-header.todo-header,
+.embedded-kanban-container .column-header.todo-header {
+    background: linear-gradient(135deg, #6c757d, #5a6268);
+    color: white;
+}
+
+.column-header.doing-header,
+.embedded-kanban-container .column-header.doing-header {
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    color: white;
+}
+
+.column-header.waiting-header,
+.embedded-kanban-container .column-header.waiting-header {
+    background: linear-gradient(135deg, #ffc107, #e0a800);
+    color: #212529;
+}
+
+.column-header.done-header,
+.embedded-kanban-container .column-header.done-header {
+    background: linear-gradient(135deg, #28a745, #1e7e34);
+    color: white;
+}
+
+/* Ensure buttons are visible on colored backgrounds */
+.todo-header .add-card-btn,
+.doing-header .add-card-btn,
+.done-header .add-card-btn {
+    background-color: rgba(255,255,255,0.9);
+    color: #212529;
+    border: 1px solid rgba(255,255,255,0.3);
+}
+
+.waiting-header .add-card-btn {
+    background-color: rgba(0,0,0,0.1);
+    color: #212529;
+    border: 1px solid rgba(0,0,0,0.2);
+}
+
+.todo-header .add-card-btn:hover,
+.doing-header .add-card-btn:hover,
+.done-header .add-card-btn:hover {
+    background-color: white;
+    color: #212529;
+}
+
+.waiting-header .add-card-btn:hover {
+    background-color: rgba(0,0,0,0.2);
+    color: #212529;
 } 
