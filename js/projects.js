@@ -184,7 +184,7 @@ function calculateOverallRating(detailedRatings) {
     }
 
     if (count === 0) return 0;
-    return Number((sum / count).toFixed(1)); // Return average, rounded
+    return Number((sum / count).toFixed(2)); // Return average, rounded
 }
 
 // Export project service

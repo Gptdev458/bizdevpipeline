@@ -275,15 +275,11 @@ function renderDetailedRatings(project, container) {
 
         const ratingsMap = {
             revenuePotential: "Revenue Potential", 
+            strategicFit: "Strategic Fit",
             insiderSupport: "Insider Support",
-            strategicFitEvolve: "Strategic Fit (Evolve)", 
-            strategicFitVerticals: "Strategic Fit (Verticals)",
-            clarityClient: "Clarity (Client)", 
-            clarityUs: "Clarity (Us)",
-            effortPotentialClient: "Effort (Potential Client)", 
-            effortExistingClient: "Effort (Existing Client)",
-            timingPotentialClient: "Timing (Potential Client)"
-            // Runway is handled as a distinct key
+            stabilityClarity: "Stability & Clarity",
+            effort: "Effort",
+            timing: "Timing"
         };
 
         for (const key in project.detailedRatingsData) {
@@ -291,9 +287,7 @@ function renderDetailedRatings(project, container) {
             const div = document.createElement('div');
             const itemValueOrNA = (itemValue === null || itemValue === undefined) ? 'N/A' : itemValue;
             
-            if (key === 'runway') {
-                div.innerHTML = `<strong>Runway:</strong> <span>${itemValueOrNA}/5</span>`;
-            } else if (ratingsMap[key]) { // Check if it's a mapped criterion
+            if (ratingsMap[key]) { // Check if it's a mapped criterion
                 div.innerHTML = `<strong>${ratingsMap[key]}:</strong> <span>${itemValueOrNA}/5</span>`;
             }
             // Potentially skip unmapped keys or handle them differently if necessary
@@ -322,15 +316,11 @@ function populateEditRatingsForm(project, formDiv, viewDiv, editButton, projectC
 
     const ratingsMap = {
         revenuePotential: "Revenue Potential", 
+        strategicFit: "Strategic Fit",
         insiderSupport: "Insider Support",
-        strategicFitEvolve: "Strategic Fit (Evolve)", 
-        strategicFitVerticals: "Strategic Fit (Verticals)",
-        clarityClient: "Clarity (Client)", 
-        clarityUs: "Clarity (Us)",
-        effortPotentialClient: "Effort (Potential Client)", 
-        effortExistingClient: "Effort (Existing Client)",
-        timingPotentialClient: "Timing (Potential Client)"
-        // Runway will be handled separately but also as a 1-5 rating
+        stabilityClarity: "Stability & Clarity",
+        effort: "Effort",
+        timing: "Timing"
     };
 
     const currentRatings = project.detailedRatingsData || {};
@@ -357,23 +347,7 @@ function populateEditRatingsForm(project, formDiv, viewDiv, editButton, projectC
         form.appendChild(criterionDiv);
     }
 
-    // Runway input as a 1-5 rating
-    const runwayDiv = document.createElement('div');
-    runwayDiv.className = 'rating-criterion form-group'; 
-    const runwayLabel = document.createElement('label');
-    runwayLabel.textContent = 'Runway (1-5 Rating)'; 
-    runwayLabel.htmlFor = `rating-runway-${project.id}`;
-    const runwayInput = document.createElement('input');
-    runwayInput.type = 'number';
-    runwayInput.id = `rating-runway-${project.id}`;
-    runwayInput.name = 'runway'; 
-    runwayInput.min = "1"; 
-    runwayInput.max = "5"; 
-    runwayInput.step = "0.5"; 
-    runwayInput.value = currentRatings.runway !== undefined ? currentRatings.runway : '3'; 
-    runwayDiv.appendChild(runwayLabel);
-    runwayDiv.appendChild(runwayInput);
-    form.appendChild(runwayDiv);
+
 
     // Action Buttons
     const actionsDiv = document.createElement('div');
@@ -398,8 +372,7 @@ function populateEditRatingsForm(project, formDiv, viewDiv, editButton, projectC
 
         for (const key in ratingsMap) {
             newRatingsData[key] = parseFloat(formData.get(key)) || 0; // MODIFIED: Get by key directly
-        }
-        newRatingsData.runway = parseFloat(formData.get('runway')) || 0; 
+        } 
 
         try {
             showStatus('Saving ratings...', false);
@@ -408,8 +381,13 @@ function populateEditRatingsForm(project, formDiv, viewDiv, editButton, projectC
             
             if (projectService.calculateOverallRating) {
                 project.rating = projectService.calculateOverallRating(project.detailedRatingsData);
-                const ratingCell = projectCard.querySelector('.project-row .project-rating');
-                if (ratingCell) ratingCell.textContent = project.rating !== null && project.rating !== undefined ? project.rating.toFixed(1) : 'N/A';
+                const ratingCell = projectCard.querySelector('.project-row .project-rating-cell');
+                if (ratingCell) {
+                    const ratingDisplay = ratingCell.querySelector('.rating-display');
+                    if (ratingDisplay) {
+                        ratingDisplay.textContent = project.rating !== null && project.rating !== undefined ? project.rating.toFixed(2) : '0.00';
+                    }
+                }
             }
 
             renderDetailedRatings(project, viewDiv);
@@ -443,8 +421,80 @@ function createProjectCard(project) {
         // Conditionally add Rating Cell FIRST for BizDev projects
         if (!project.isIanCollaboration) {
             const ratingCell = document.createElement('div');
-            ratingCell.className = 'project-rating';
-            ratingCell.textContent = project.rating !== null && typeof project.rating !== 'undefined' ? project.rating.toFixed(1) : 'N/A'; // Using toFixed(1) as per overall rating calc
+            ratingCell.className = 'project-rating-cell editable-rating-cell';
+            
+            // Create rating display element
+            const ratingDisplay = document.createElement('div');
+            ratingDisplay.className = 'rating-display';
+            ratingDisplay.textContent = project.rating !== null && typeof project.rating !== 'undefined' ? project.rating.toFixed(2) : '0.00';
+            ratingDisplay.style.cursor = 'pointer';
+            ratingDisplay.title = 'Click to edit rating';
+            
+            // Create rating input element (initially hidden)
+            const ratingInput = document.createElement('input');
+            ratingInput.type = 'number';
+            ratingInput.className = 'rating-input';
+            ratingInput.min = '0';
+            ratingInput.max = '5';
+            ratingInput.step = '0.01';
+            ratingInput.value = project.rating !== null && typeof project.rating !== 'undefined' ? project.rating.toFixed(2) : '0.00';
+            ratingInput.style.display = 'none';
+            ratingInput.style.width = '70px';
+            
+            // Function to switch to edit mode
+            const enterEditMode = () => {
+                ratingDisplay.style.display = 'none';
+                ratingInput.style.display = 'inline-block';
+                ratingInput.focus();
+                ratingInput.select();
+            };
+            
+            // Function to exit edit mode and save
+            const exitEditMode = async (save = true) => {
+                if (save) {
+                    const newRating = parseFloat(ratingInput.value);
+                    if (isNaN(newRating) || newRating < 0 || newRating > 5) {
+                        showStatus('Rating must be a number between 0 and 5', true);
+                        ratingInput.focus();
+                        return;
+                    }
+                    
+                    try {
+                        // Update the project rating
+                        await handleInlineEdit(project.id, 'rating', newRating, projectCard);
+                        ratingDisplay.textContent = newRating.toFixed(2);
+                        showStatus('Rating updated successfully!');
+                    } catch (error) {
+                        console.error('Error updating rating:', error);
+                        showStatus('Failed to update rating', true);
+                        // Revert to original value
+                        ratingInput.value = project.rating !== null && typeof project.rating !== 'undefined' ? project.rating.toFixed(2) : '0.00';
+                    }
+                }
+                
+                ratingInput.style.display = 'none';
+                ratingDisplay.style.display = 'inline-block';
+            };
+            
+            // Event listeners
+            ratingDisplay.addEventListener('click', enterEditMode);
+            
+            ratingInput.addEventListener('blur', () => exitEditMode(true));
+            
+            ratingInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    exitEditMode(true);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    // Revert to original value
+                    ratingInput.value = project.rating !== null && typeof project.rating !== 'undefined' ? project.rating.toFixed(2) : '0.00';
+                    exitEditMode(false);
+                }
+            });
+            
+            ratingCell.appendChild(ratingDisplay);
+            ratingCell.appendChild(ratingInput);
             projectRow.appendChild(ratingCell);
         }
 

@@ -752,7 +752,7 @@ h2 { margin-bottom: 15px; }
     grid-template-columns: 4fr 1fr 1fr !important;
 }
 
-.collab-list-view .project-card .project-row .project-rating {
+.collab-list-view .project-card .project-row .project-rating-cell {
     display: none !important;
 }
 
@@ -1059,4 +1059,49 @@ h2 { margin-bottom: 15px; }
     /* Add any specific margin if needed, e.g., display block and margin-top */
     display: block; /* Make it a block to take full width or allow margin auto */
     margin-left: auto; /* Align to the right */
+}
+
+/* Editable Rating Cell Styles */
+.project-rating-cell.editable-rating-cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.rating-display {
+    font-weight: 600;
+    font-size: 1.1em;
+    color: var(--primary-color);
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: #f8f9ff;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+    min-width: 40px;
+    text-align: center;
+}
+
+.rating-display:hover {
+    background-color: #e6f0ff;
+    border-color: var(--primary-color);
+    box-shadow: 0 1px 3px rgba(0, 123, 255, 0.1);
+}
+
+.rating-input {
+    font-weight: 600;
+    font-size: 1.1em;
+    color: var(--primary-color);
+    padding: 4px 8px;
+    border: 2px solid var(--primary-color);
+    border-radius: 4px;
+    background-color: #fff;
+    text-align: center;
+    min-width: 70px;
+    box-shadow: 0 2px 6px rgba(0, 123, 255, 0.2);
+}
+
+.rating-input:focus {
+    outline: none;
+    border-color: var(--primary-hover-color);
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
 } 

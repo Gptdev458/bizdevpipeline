@@ -5,6 +5,7 @@ import { supabaseService } from './supabase.js';
 import { projectService } from './projects.js';
 import { taskService } from './tasks.js';
 import { uiService, openModal, closeModal } from './ui.js';
+import { populateAllRatings } from './populateRatings.js';
 
 // Create a simple loading/error indicator
 function showStatus(message, isError = false) {
@@ -168,4 +169,5 @@ window.addEventListener('error', (event) => {
 
 // Expose functions to window for development purposes
 window.openModal = openModal;
-window.closeModal = closeModal; 
+window.closeModal = closeModal;
+window.populateAllRatings = populateAllRatings; 
