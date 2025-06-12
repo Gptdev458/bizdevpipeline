@@ -947,10 +947,15 @@ function handleDragStart(e) {
     draggedCard = e.target;
     e.target.style.opacity = '0.5';
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/html', e.target.outerHTML);
+    
+    // Set the task ID as plain text data
+    const taskId = e.target.dataset.taskId;
+    console.log('Dragstart event triggered for card:', taskId);
+    e.dataTransfer.setData('text/plain', taskId);
 }
 
 function handleDragEnd(e) {
+    console.log('Dragend event triggered for card:', e.target.dataset.taskId);
     e.target.style.opacity = '1';
     draggedCard = null;
 }
@@ -962,16 +967,18 @@ function handleDragOver(e) {
 
 function handleDragEnter(e) {
     e.preventDefault();
-    e.target.classList.add('drag-over');
+    e.currentTarget.classList.add('drag-over');
 }
 
 function handleDragLeave(e) {
-    e.target.classList.remove('drag-over');
+    e.currentTarget.classList.remove('drag-over');
 }
 
 function handleDrop(e) {
     e.preventDefault();
     e.stopPropagation();
+    
+    console.log('Drop event triggered on container:', e.currentTarget.dataset.status);
     
     const taskId = e.dataTransfer.getData('text/plain');
     const newStatus = e.currentTarget.dataset.status;
@@ -983,8 +990,10 @@ function handleDrop(e) {
         const draggedCard = document.querySelector(`[data-task-id="${taskId}"]`);
         const projectId = draggedCard ? draggedCard.dataset.projectId : null;
         
+        console.log('Found dragged card:', draggedCard, 'projectId:', projectId);
+        
         if (projectId) {
-            // Don't convert UUID strings to numbers - keep as string
+            console.log('Calling moveCard with:', { taskId, newStatus, projectId });
             moveCard(taskId, newStatus, projectId);
         } else {
             console.error('No project ID found for dropped card');
