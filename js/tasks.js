@@ -34,29 +34,37 @@ async function getTasksByProjectId(projectId, parentId = null) {
             return [];
         }
 
+        // Start with basic project filter
         const filters = { project_id: projectId };
-        if (parentId === null) {
-            // For Supabase, to filter for NULL, you often need a specific syntax
-            // or ensure your fetch method handles it. Let's assume `eq(column, null)` works
-            // or that supabaseService.fetch handles `null` as `is.null`.
-            // A more robust way for Supabase is often `filters.parent_task_id = 'is.null'`,
-            // but let's try with direct null first and adjust supabaseService if needed.
-            // For now, we'll build the query to explicitly check for null for parent_task_id.
-            // This requires supabaseService.fetch to be more flexible or add a new method.
-
-            // Let's adjust the filter key to match the database column `parent_task_id`
-            filters.parent_task_id = null; // This will be handled by supabase.js to be `parent_task_id.is.null`
-        } else {
-            filters.parent_task_id = parentId;
+        
+        // Try to add parent_task_id filter, but handle gracefully if column doesn't exist
+        try {
+            if (parentId === null) {
+                // For top-level tasks (Kanban board), try to filter for null parent_task_id
+                // If this column doesn't exist, we'll catch the error and fetch all tasks instead
+                filters.parent_task_id = null;
+            } else {
+                filters.parent_task_id = parentId;
+            }
+            
+            const data = await supabaseService.fetch('tasks', filters);
+            console.log(`Retrieved ${data.length} tasks for project ${projectId}, parentId: ${parentId}`);
+            return data;
+            
+        } catch (parentFilterError) {
+            console.log('parent_task_id column might not exist, trying without parent filter:', parentFilterError);
+            
+            // If parent_task_id column doesn't exist, just fetch all tasks for the project
+            if (parentFilterError.message && parentFilterError.message.includes('parent_task_id')) {
+                console.log('Fetching all tasks for project (no parent_task_id column)');
+                const data = await supabaseService.fetch('tasks', { project_id: projectId });
+                console.log(`Retrieved ${data.length} tasks for project ${projectId} (no parent filtering)`);
+                return data;
+            } else {
+                throw parentFilterError; // Re-throw if it's a different error
+            }
         }
         
-        // The `supabaseService.fetch` needs to be able to handle `null` value in filters
-        // to correctly form an `IS NULL` query. Modify supabase.js if it doesn't.
-        // For now, assuming it's handled (or needs to be).
-
-        const data = await supabaseService.fetch('tasks', filters);
-        console.log(`Retrieved ${data.length} tasks for project ${projectId}, parentId: ${parentId}`);
-        return data;
     } catch (error) {
         console.error(`Error getting tasks for project ${projectId}, parentId: ${parentId}:`, error);
         return [];
@@ -73,37 +81,55 @@ async function createTask(projectId, taskData) {
             delete dataForSupabase.parentId;
         }
 
-        // Set default status if not provided (for Kanban board)
-        // Only include status if it's provided, to avoid database errors if column doesn't exist
-        if (dataForSupabase.status) {
-            // Keep the status field
-        } else if (dataForSupabase.hasOwnProperty('status')) {
-            // If status is explicitly set to undefined/null, set to 'todo'
-            dataForSupabase.status = 'todo';
+        // Create the basic task first without Kanban-specific fields
+        const basicTask = { 
+            project_id: projectId, 
+            text: dataForSupabase.text || dataForSupabase.title || 'Untitled',
+            description: dataForSupabase.description || '',
+            completed: dataForSupabase.completed || false
+        };
+        
+        // Only add parentTaskId if it was provided
+        if (dataForSupabase.parentTaskId) {
+            basicTask.parent_task_id = dataForSupabase.parentTaskId;
         }
 
-        // Only include position if it's provided, to avoid database errors if column doesn't exist
-        if (dataForSupabase.hasOwnProperty('position') && dataForSupabase.position === undefined) {
-            dataForSupabase.position = 0;
+        console.log('Creating task with basic data:', basicTask);
+        
+        try {
+            // First try with basic fields only
+            const newTask = await supabaseService.insert('tasks', basicTask);
+            console.log('Task created successfully with basic fields:', newTask);
+            
+            // If successful and we have Kanban fields to add, try updating with them
+            if (dataForSupabase.status || dataForSupabase.position !== undefined) {
+                console.log('Attempting to add Kanban fields...');
+                try {
+                    const kanbanUpdate = {};
+                    if (dataForSupabase.status) kanbanUpdate.status = dataForSupabase.status;
+                    if (dataForSupabase.position !== undefined) kanbanUpdate.position = dataForSupabase.position;
+                    
+                    await supabaseService.update('tasks', newTask.id, kanbanUpdate);
+                    console.log('Kanban fields added successfully');
+                    
+                    // Return updated task with Kanban fields
+                    return { ...newTask, ...kanbanUpdate };
+                } catch (kanbanError) {
+                    console.log('Kanban fields failed to add (columns might not exist), but task created:', kanbanError);
+                    // Return the basic task even if Kanban fields failed
+                    return { ...newTask, status: dataForSupabase.status || 'todo' };
+                }
+            }
+            
+            return { ...newTask, status: dataForSupabase.status || 'todo' };
+            
+        } catch (error) {
+            console.error('Error creating basic task:', error);
+            throw error;
         }
-
-        const task = { project_id: projectId, ...dataForSupabase };
-        console.log('Creating task with data for Supabase:', task);
-        return await supabaseService.insert('tasks', task);
+        
     } catch (error) {
         console.error(`Error creating task for project ${projectId}:`, error);
-        // If error mentions unknown columns, retry without status/position
-        if (error.message && (error.message.includes('status') || error.message.includes('position'))) {
-            console.log('Retrying task creation without status/position columns...');
-            try {
-                const { status, position, ...taskDataWithoutKanban } = taskData;
-                const task = { project_id: projectId, ...taskDataWithoutKanban };
-                return await supabaseService.insert('tasks', task);
-            } catch (retryError) {
-                console.error('Retry also failed:', retryError);
-                throw retryError;
-            }
-        }
         throw error;
     }
 }

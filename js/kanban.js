@@ -3,8 +3,27 @@
 
 import { taskService } from './tasks.js';
 
-// Use global showStatus function from app.js
-const showStatus = window.showStatus || ((message, isError) => console.log(message));
+// Robust status display function
+function showStatus(message, isError = false) {
+    console.log(`[Kanban Status] ${isError ? 'ERROR:' : 'INFO:'} ${message}`);
+    
+    // Try global showStatus first
+    if (typeof window.showStatus === 'function') {
+        try {
+            window.showStatus(message, isError);
+            return;
+        } catch (e) {
+            console.log('Global showStatus failed, using console only:', e);
+        }
+    }
+    
+    // Fallback to console
+    if (isError) {
+        console.error('Kanban Error:', message);
+    } else {
+        console.log('Kanban Info:', message);
+    }
+}
 
 // Kanban board configuration
 const BOARD_COLUMNS = [
@@ -149,13 +168,91 @@ async function loadBoardData() {
 
 // Load tasks and render board
 async function loadTasksAndRender() {
-    if (!currentProjectId) return;
+    console.log('loadTasksAndRender called with projectId:', currentProjectId);
+    
+    if (!currentProjectId) {
+        console.error('No project ID available for loading tasks');
+        showStatus('Error: No project selected', true);
+        return;
+    }
     
     try {
         showStatus('Loading tasks...', false);
+        console.log('Calling taskService.getTasksByProjectId...');
+        
+        // Try to fetch tasks with detailed logging
         const tasks = await taskService.getTasksByProjectId(currentProjectId, null);
+        console.log('Raw tasks received:', tasks);
+        console.log('Number of tasks:', tasks ? tasks.length : 'null/undefined');
+        
+        // Initialize empty board data structure
+        boardData = {
+            'todo': [],
+            'doing': [],
+            'waiting': [],
+            'done': []
+        };
+        console.log('Initialized empty board data:', boardData);
+        
+        // Check if we actually got tasks
+        if (!tasks || !Array.isArray(tasks)) {
+            console.log('No tasks array received, using empty board');
+            renderBoard();
+            setupEventListeners();
+            showStatus('No tasks found - you can add new ones using the + Add Card buttons', false);
+            return;
+        }
+        
+        if (tasks.length === 0) {
+            console.log('Empty tasks array received');
+            renderBoard();
+            setupEventListeners();
+            showStatus('No tasks found - you can add new ones using the + Add Card buttons', false);
+            return;
+        }
         
         // Organize tasks by status
+        console.log('Organizing tasks by status...');
+        tasks.forEach((task, index) => {
+            console.log(`Task ${index}:`, {
+                id: task.id,
+                text: task.text,
+                title: task.title,
+                status: task.status,
+                projectId: task.projectId
+            });
+            
+            const status = task.status || 'todo';
+            if (boardData[status]) {
+                boardData[status].push(task);
+                console.log(`Added task to ${status} column`);
+            } else {
+                console.log(`Unknown status ${status}, adding to todo`);
+                boardData['todo'].push(task); // Fallback to todo
+            }
+        });
+        
+        console.log('Final organized board data:', boardData);
+        console.log('Board data summary:', {
+            todo: boardData.todo.length,
+            doing: boardData.doing.length,
+            waiting: boardData.waiting.length,
+            done: boardData.done.length
+        });
+        
+        renderBoard();
+        setupEventListeners();
+        showStatus(`Loaded ${tasks.length} tasks successfully`, false);
+        
+    } catch (error) {
+        console.error('Error in loadTasksAndRender:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        
+        // Initialize empty board even on error so the UI still works
         boardData = {
             'todo': [],
             'doing': [],
@@ -163,21 +260,9 @@ async function loadTasksAndRender() {
             'done': []
         };
         
-        tasks.forEach(task => {
-            const status = task.status || 'todo';
-            if (boardData[status]) {
-                boardData[status].push(task);
-            } else {
-                boardData['todo'].push(task); // Fallback to todo
-            }
-        });
-        
         renderBoard();
         setupEventListeners();
-        showStatus('Tasks loaded successfully', false);
-    } catch (error) {
-        console.error('Error loading tasks:', error);
-        showStatus('Error loading tasks: ' + (error.message || 'Unknown error'), true);
+        showStatus('Error loading tasks: ' + (error.message || 'Unknown error') + ' - but you can still add new tasks', true);
     }
 }
 
