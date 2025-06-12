@@ -843,15 +843,42 @@ function createProjectDetails(project, projectCard) {
         const tasksPane = panesContainer.querySelector('#tasks-pane-' + project.id);
         if (tasksPane) {
             const tasksContainer = document.createElement('div');
-            tasksContainer.className = 'project-tasks-bizdev project-detail-item'; // Keep existing class for now
-            tasksContainer.innerHTML = '<h3>Tasks</h3>';
+            tasksContainer.className = 'project-tasks-bizdev project-detail-item';
+            
+            // Tasks header with Kanban board button
+            const tasksHeader = document.createElement('div');
+            tasksHeader.style.display = 'flex';
+            tasksHeader.style.justifyContent = 'space-between';
+            tasksHeader.style.alignItems = 'center';
+            tasksHeader.style.marginBottom = '15px';
+            
+            const tasksTitle = document.createElement('h3');
+            tasksTitle.textContent = 'Tasks';
+            tasksTitle.style.margin = '0';
+            
+            const kanbanButton = document.createElement('button');
+            kanbanButton.textContent = '📋 Kanban Board';
+            kanbanButton.className = 'btn btn-primary btn-sm';
+            kanbanButton.style.fontSize = '12px';
+            kanbanButton.addEventListener('click', () => {
+                if (window.showKanbanBoard) {
+                    window.showKanbanBoard(project);
+                } else {
+                    console.error('showKanbanBoard function not available');
+                }
+            });
+            
+            tasksHeader.appendChild(tasksTitle);
+            tasksHeader.appendChild(kanbanButton);
+            tasksContainer.appendChild(tasksHeader);
+            
             const taskListEl = document.createElement('ul');
             taskListEl.className = 'task-list-bizdev';
             taskListEl.innerHTML = '<li>Loading tasks...</li>';
             tasksContainer.appendChild(taskListEl);
 
             const addTaskForm = document.createElement('form');
-            addTaskForm.className = 'add-task-form top-level-task-form'; // Differentiate top-level form
+            addTaskForm.className = 'add-task-form top-level-task-form';
             const taskInput = document.createElement('input');
             taskInput.type = 'text';
             taskInput.placeholder = 'New task...';
@@ -869,10 +896,10 @@ function createProjectDetails(project, projectCard) {
                 const taskText = taskInput.value.trim();
                 if (taskText) {
                     try {
-                        await taskService.createTask(project.id, { text: taskText, completed: false, parentId: null }); // Explicitly null for top-level
+                        await taskService.createTask(project.id, { text: taskText, completed: false, parentId: null });
                         taskInput.value = ''; 
-                        const updatedTasks = await taskService.getTasksByProjectId(project.id, null); // Fetch top-level tasks
-                        await renderTasks(updatedTasks, taskListEl, project.id, null, 0); // Rerender top-level tasks
+                        const updatedTasks = await taskService.getTasksByProjectId(project.id, null);
+                        await renderTasks(updatedTasks, taskListEl, project.id, null, 0);
                         showStatus('Task added successfully!', false);
                     } catch (error) {
                         console.error('Error adding task:', error);

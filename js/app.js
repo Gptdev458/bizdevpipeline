@@ -6,6 +6,10 @@ import { projectService } from './projects.js';
 import { taskService } from './tasks.js';
 import { uiService, openModal, closeModal } from './ui.js';
 import { populateAllRatings } from './populateRatings.js';
+import { kanbanBoard } from './kanban.js';
+
+// Global variables for Kanban board
+let currentKanbanProject = null;
 
 // Create a simple loading/error indicator
 function showStatus(message, isError = false) {
@@ -54,6 +58,58 @@ function showStatus(message, isError = false) {
 // Make showStatus globally available
 window.showStatus = showStatus;
 
+// Kanban board functions
+function showKanbanBoard(project) {
+    try {
+        // Hide all tab contents
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.style.display = 'none';
+        });
+        
+        // Show Kanban view
+        const kanbanView = document.getElementById('kanban-view');
+        const kanbanTitle = document.getElementById('kanban-project-title');
+        
+        if (kanbanView && kanbanTitle) {
+            kanbanView.style.display = 'block';
+            kanbanTitle.textContent = `${project.name} - Kanban Board`;
+            currentKanbanProject = project;
+            
+            // Initialize the Kanban board
+            kanbanBoard.init(project.id);
+        } else {
+            console.error('Kanban view elements not found');
+            showStatus('Error loading Kanban board', true);
+        }
+    } catch (error) {
+        console.error('Error showing Kanban board:', error);
+        showStatus('Error loading Kanban board', true);
+    }
+}
+
+function hideKanbanBoard() {
+    try {
+        // Hide Kanban view
+        const kanbanView = document.getElementById('kanban-view');
+        if (kanbanView) {
+            kanbanView.style.display = 'none';
+        }
+        
+        // Show the appropriate tab content
+        const activeTab = document.querySelector('.tab-button.active');
+        if (activeTab) {
+            const tabContent = document.getElementById(activeTab.dataset.tab);
+            if (tabContent) {
+                tabContent.style.display = 'block';
+            }
+        }
+        
+        currentKanbanProject = null;
+    } catch (error) {
+        console.error('Error hiding Kanban board:', error);
+    }
+}
+
 // Initialize the application
 async function initApp() {
     try {
@@ -76,6 +132,7 @@ async function initApp() {
         // Set up event listeners
         try {
             uiService.setupEventListeners();
+            setupKanbanEventListeners();
             console.log('Event listeners set up successfully');
         } catch (listenerError) {
             console.error('Error setting up event listeners:', listenerError);
@@ -106,6 +163,15 @@ async function initApp() {
     } catch (error) {
         console.error('Error initializing application:', error);
         showStatus(`Failed to initialize application: ${error.message}. Please refresh the page or try again later.`, true);
+    }
+}
+
+// Setup Kanban-specific event listeners
+function setupKanbanEventListeners() {
+    // Back to projects button
+    const backToProjectsBtn = document.getElementById('back-to-projects');
+    if (backToProjectsBtn) {
+        backToProjectsBtn.addEventListener('click', hideKanbanBoard);
     }
 }
 
@@ -170,4 +236,6 @@ window.addEventListener('error', (event) => {
 // Expose functions to window for development purposes
 window.openModal = openModal;
 window.closeModal = closeModal;
-window.populateAllRatings = populateAllRatings; 
+window.populateAllRatings = populateAllRatings;
+window.showKanbanBoard = showKanbanBoard;
+window.hideKanbanBoard = hideKanbanBoard; 

@@ -65,16 +65,26 @@ async function getTasksByProjectId(projectId, parentId = null) {
 
 async function createTask(projectId, taskData) {
     try {
-        const dataForSupabase = { ...taskData }; // Clone taskData
+        const dataForSupabase = { ...taskData };
 
         // Map parentId to parentTaskId for correct snake_case conversion
         if (dataForSupabase.hasOwnProperty('parentId')) {
             dataForSupabase.parentTaskId = dataForSupabase.parentId;
-            delete dataForSupabase.parentId; // Remove the original 'parentId'
+            delete dataForSupabase.parentId;
+        }
+
+        // Set default status if not provided (for Kanban board)
+        if (!dataForSupabase.status) {
+            dataForSupabase.status = 'todo';
+        }
+
+        // Set default position if not provided
+        if (dataForSupabase.position === undefined) {
+            dataForSupabase.position = 0;
         }
 
         const task = { project_id: projectId, ...dataForSupabase };
-        console.log('Creating task with data for Supabase:', task); // Debug log
+        console.log('Creating task with data for Supabase:', task);
         return await supabaseService.insert('tasks', task);
     } catch (error) {
         console.error(`Error creating task for project ${projectId}:`, error);
@@ -144,6 +154,32 @@ async function createSubtask(projectId, parentTaskId, taskData) {
     }
 }
 
+// Kanban-specific helper functions
+async function getTasksByStatus(projectId, status) {
+    try {
+        return await supabaseService.fetch('tasks', { 
+            project_id: projectId,
+            status: status,
+            parent_task_id: null // Only get top-level tasks for Kanban
+        });
+    } catch (error) {
+        console.error(`Error getting tasks with status ${status} for project ${projectId}:`, error);
+        return [];
+    }
+}
+
+async function updateTaskStatus(projectId, taskId, newStatus, position = 0) {
+    try {
+        return await updateTask(projectId, taskId, {
+            status: newStatus,
+            position: position
+        });
+    } catch (error) {
+        console.error(`Error updating task ${taskId} status to ${newStatus}:`, error);
+        throw error;
+    }
+}
+
 // Export task service
 export const taskService = {
     getTasksByProjectId,
@@ -151,5 +187,7 @@ export const taskService = {
     updateTask,
     deleteTask,
     getSubtasks,
-    createSubtask
+    createSubtask,
+    getTasksByStatus,
+    updateTaskStatus
 }; 
