@@ -704,6 +704,17 @@ function createProjectCard(project) {
                 return;
             }
 
+            // For collaboration projects, go directly to Kanban board
+            if (project.isIanCollaboration) {
+                if (window.showKanbanBoard) {
+                    window.showKanbanBoard(project);
+                } else {
+                    console.error('showKanbanBoard function not available');
+                }
+                return;
+            }
+
+            // For regular projects, toggle expansion
             projectCard.classList.toggle('expanded');
             const detailsWrapper = projectCard.querySelector('.project-details-wrapper');
             const currentExpandIcon = projectRow.querySelector('.expand-icon'); // Get the icon

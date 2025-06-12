@@ -2,7 +2,9 @@
 // Simple Trello-like board with 4 columns: To Do, Doing, Waiting Feedback, Done
 
 import { taskService } from './tasks.js';
-import { showStatus } from './ui.js';
+
+// Use global showStatus function from app.js
+const showStatus = window.showStatus || ((message, isError) => console.log(message));
 
 // Kanban board configuration
 const BOARD_COLUMNS = [
@@ -89,18 +91,22 @@ function renderColumn(column) {
 
 // Render a single card
 function renderCard(task) {
+    const title = task.title || task.text || 'Untitled'; // Support both title and text fields
+    const description = task.description || '';
+    const createdAt = task.created_at || task.createdAt || new Date().toISOString();
+    
     return `
         <div class="kanban-card" data-task-id="${task.id}" draggable="true">
             <div class="card-header">
-                <span class="card-title">${task.title || 'Untitled'}</span>
+                <span class="card-title">${title}</span>
                 <div class="card-actions">
                     <button class="edit-card-btn" data-task-id="${task.id}">✏️</button>
                     <button class="delete-card-btn" data-task-id="${task.id}">🗑️</button>
                 </div>
             </div>
-            ${task.description ? `<div class="card-description">${task.description}</div>` : ''}
+            ${description ? `<div class="card-description">${description}</div>` : ''}
             <div class="card-footer">
-                <span class="card-date">${formatDate(task.createdAt)}</span>
+                <span class="card-date">${formatDate(createdAt)}</span>
             </div>
         </div>
     `;
@@ -116,15 +122,23 @@ async function addCard(status) {
     try {
         showStatus('Creating card...', false);
         
-        const newTask = await taskService.createTask(currentProjectId, {
-            title: title,
+        // Create task with appropriate field names based on existing data structure
+        const taskData = {
+            text: title,        // Use 'text' field like existing tasks
             description: description,
+            completed: false,
             status: status,
             position: boardData[status].length
-        });
+        };
         
-        // Add to board data
-        boardData[status].push(newTask);
+        const newTask = await taskService.createTask(currentProjectId, taskData);
+        
+        // Add to board data with fallback for missing status
+        const taskStatus = newTask.status || status;
+        if (!boardData[taskStatus]) {
+            boardData[taskStatus] = [];
+        }
+        boardData[taskStatus].push(newTask);
         
         // Re-render the board
         renderBoard();
@@ -133,7 +147,7 @@ async function addCard(status) {
         showStatus('Card created successfully', false);
     } catch (error) {
         console.error('Error creating card:', error);
-        showStatus('Error creating card', true);
+        showStatus('Error creating card: ' + (error.message || 'Unknown error'), true);
     }
 }
 
@@ -142,23 +156,30 @@ async function editCard(taskId) {
     const task = findTaskById(taskId);
     if (!task) return;
     
-    const newTitle = prompt('Enter new title:', task.title) || task.title;
-    const newDescription = prompt('Enter new description:', task.description || '') || task.description;
+    const currentTitle = task.title || task.text || '';
+    const currentDescription = task.description || '';
     
-    if (newTitle === task.title && newDescription === task.description) {
+    const newTitle = prompt('Enter new title:', currentTitle) || currentTitle;
+    const newDescription = prompt('Enter new description:', currentDescription) || currentDescription;
+    
+    if (newTitle === currentTitle && newDescription === currentDescription) {
         return; // No changes
     }
     
     try {
         showStatus('Updating card...', false);
         
-        await taskService.updateTask(currentProjectId, taskId, {
-            title: newTitle,
+        // Update with correct field names
+        const updateData = {
+            text: newTitle,  // Use 'text' field for consistency
             description: newDescription
-        });
+        };
+        
+        await taskService.updateTask(currentProjectId, taskId, updateData);
         
         // Update board data
-        task.title = newTitle;
+        task.text = newTitle;
+        task.title = newTitle; // Keep both for compatibility
         task.description = newDescription;
         
         // Re-render the board
@@ -168,7 +189,7 @@ async function editCard(taskId) {
         showStatus('Card updated successfully', false);
     } catch (error) {
         console.error('Error updating card:', error);
-        showStatus('Error updating card', true);
+        showStatus('Error updating card: ' + (error.message || 'Unknown error'), true);
     }
 }
 
@@ -207,15 +228,24 @@ async function moveCard(taskId, newStatus) {
     try {
         showStatus('Moving card...', false);
         
-        await taskService.updateTask(currentProjectId, taskId, {
+        // Try to update with status field, fall back if column doesn't exist
+        const updateData = {
             status: newStatus,
-            position: boardData[newStatus].length
-        });
+            position: boardData[newStatus] ? boardData[newStatus].length : 0
+        };
+        
+        await taskService.updateTask(currentProjectId, taskId, updateData);
         
         // Update board data
         const oldStatus = task.status || 'todo';
-        boardData[oldStatus] = boardData[oldStatus].filter(t => t.id !== taskId);
+        if (boardData[oldStatus]) {
+            boardData[oldStatus] = boardData[oldStatus].filter(t => t.id !== taskId);
+        }
+        
         task.status = newStatus;
+        if (!boardData[newStatus]) {
+            boardData[newStatus] = [];
+        }
         boardData[newStatus].push(task);
         
         // Re-render the board
@@ -225,7 +255,24 @@ async function moveCard(taskId, newStatus) {
         showStatus('Card moved successfully', false);
     } catch (error) {
         console.error('Error moving card:', error);
-        showStatus('Error moving card', true);
+        // If the error is about missing status column, just update the UI
+        if (error.message && error.message.includes('status')) {
+            console.log('Status column not found, updating UI only');
+            const oldStatus = task.status || 'todo';
+            if (boardData[oldStatus]) {
+                boardData[oldStatus] = boardData[oldStatus].filter(t => t.id !== taskId);
+            }
+            task.status = newStatus;
+            if (!boardData[newStatus]) {
+                boardData[newStatus] = [];
+            }
+            boardData[newStatus].push(task);
+            renderBoard();
+            setupEventListeners();
+            showStatus('Card moved (UI only - database column missing)', false);
+        } else {
+            showStatus('Error moving card: ' + (error.message || 'Unknown error'), true);
+        }
     }
 }
 

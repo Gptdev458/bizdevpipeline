@@ -74,12 +74,16 @@ async function createTask(projectId, taskData) {
         }
 
         // Set default status if not provided (for Kanban board)
-        if (!dataForSupabase.status) {
+        // Only include status if it's provided, to avoid database errors if column doesn't exist
+        if (dataForSupabase.status) {
+            // Keep the status field
+        } else if (dataForSupabase.hasOwnProperty('status')) {
+            // If status is explicitly set to undefined/null, set to 'todo'
             dataForSupabase.status = 'todo';
         }
 
-        // Set default position if not provided
-        if (dataForSupabase.position === undefined) {
+        // Only include position if it's provided, to avoid database errors if column doesn't exist
+        if (dataForSupabase.hasOwnProperty('position') && dataForSupabase.position === undefined) {
             dataForSupabase.position = 0;
         }
 
@@ -88,6 +92,18 @@ async function createTask(projectId, taskData) {
         return await supabaseService.insert('tasks', task);
     } catch (error) {
         console.error(`Error creating task for project ${projectId}:`, error);
+        // If error mentions unknown columns, retry without status/position
+        if (error.message && (error.message.includes('status') || error.message.includes('position'))) {
+            console.log('Retrying task creation without status/position columns...');
+            try {
+                const { status, position, ...taskDataWithoutKanban } = taskData;
+                const task = { project_id: projectId, ...taskDataWithoutKanban };
+                return await supabaseService.insert('tasks', task);
+            } catch (retryError) {
+                console.error('Retry also failed:', retryError);
+                throw retryError;
+            }
+        }
         throw error;
     }
 }
