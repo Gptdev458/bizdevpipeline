@@ -366,58 +366,68 @@ async function moveCard(taskId, newStatus) {
     try {
         showStatus('Moving card...', false);
         
-        // Try to update with status field, fall back if column doesn't exist
-        const updateData = {
-            status: newStatus,
-            position: boardData[newStatus] ? boardData[newStatus].length : 0
-        };
+        // First try with just status field (most likely to work)
+        let updateData = { status: newStatus };
         
         console.log('Updating task with:', updateData);
         
-        await taskService.updateTask(currentProjectId, taskId, updateData);
-        
-        // Update board data
-        const oldStatus = task.status || 'todo';
-        console.log('Moving from', oldStatus, 'to', newStatus);
-        
-        if (boardData[oldStatus]) {
-            boardData[oldStatus] = boardData[oldStatus].filter(t => t.id !== taskId);
+        try {
+            await taskService.updateTask(currentProjectId, taskId, updateData);
+            console.log('Status update successful');
+        } catch (statusError) {
+            console.log('Status column also missing, trying without status:', statusError);
+            
+            // If status column doesn't exist either, just update the UI
+            if (statusError.message && statusError.message.includes('status')) {
+                console.log('Status column not found, updating UI only');
+                updateUIOnly(task, newStatus);
+                return;
+            } else {
+                throw statusError; // Re-throw if it's a different error
+            }
         }
         
-        task.status = newStatus;
-        if (!boardData[newStatus]) {
-            boardData[newStatus] = [];
-        }
-        boardData[newStatus].push(task);
-        
-        console.log('Updated board data:', boardData);
-        
-        // Re-render the board
-        renderBoard();
-        setupEventListeners();
+        // Update board data after successful database update
+        updateUIOnly(task, newStatus);
         
         showStatus('Card moved successfully', false);
+        
     } catch (error) {
         console.error('Error moving card:', error);
-        // If the error is about missing status column, just update the UI
-        if (error.message && error.message.includes('status')) {
-            console.log('Status column not found, updating UI only');
-            const oldStatus = task.status || 'todo';
-            if (boardData[oldStatus]) {
-                boardData[oldStatus] = boardData[oldStatus].filter(t => t.id !== taskId);
-            }
-            task.status = newStatus;
-            if (!boardData[newStatus]) {
-                boardData[newStatus] = [];
-            }
-            boardData[newStatus].push(task);
-            renderBoard();
-            setupEventListeners();
-            showStatus('Card moved (UI only - database column missing)', false);
+        
+        // Check if it's a column-missing error
+        if (error.message && (error.message.includes('status') || error.message.includes('position'))) {
+            console.log('Database columns missing, updating UI only');
+            updateUIOnly(task, newStatus);
+            showStatus('Card moved (UI only - database columns missing)', false);
         } else {
             showStatus('Error moving card: ' + (error.message || 'Unknown error'), true);
         }
     }
+}
+
+// Helper function to update UI without database
+function updateUIOnly(task, newStatus) {
+    const oldStatus = task.status || 'todo';
+    console.log('Moving from', oldStatus, 'to', newStatus, '(UI only)');
+    
+    // Remove from old column
+    if (boardData[oldStatus]) {
+        boardData[oldStatus] = boardData[oldStatus].filter(t => t.id !== task.id);
+    }
+    
+    // Add to new column
+    task.status = newStatus;
+    if (!boardData[newStatus]) {
+        boardData[newStatus] = [];
+    }
+    boardData[newStatus].push(task);
+    
+    console.log('Updated board data:', boardData);
+    
+    // Re-render the board
+    renderBoard();
+    setupEventListeners();
 }
 
 // Setup event listeners

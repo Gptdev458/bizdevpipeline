@@ -856,8 +856,19 @@ function createProjectDetails(project, projectCard) {
                 kanbanContainer.appendChild(kanbanTitle);
                 tasksPane.appendChild(kanbanContainer);
                 
+                // Track if Kanban has been initialized
+                let kanbanInitialized = false;
+                
                 // Initialize embedded Kanban board when tab becomes active
                 const initKanban = () => {
+                    if (kanbanInitialized) {
+                        console.log('Kanban already initialized, skipping');
+                        return;
+                    }
+                    
+                    console.log('Initializing Kanban for project:', project.id);
+                    kanbanInitialized = true;
+                    
                     if (window.initEmbeddedKanban) {
                         window.initEmbeddedKanban(project, kanbanContainer);
                     } else {
@@ -866,18 +877,31 @@ function createProjectDetails(project, projectCard) {
                     }
                 };
                 
-                // Initialize immediately if Tasks tab is the first tab
+                // Initialize immediately if Tasks tab is the first visible tab
                 if (firstVisibleButton && firstVisibleButton.dataset.paneTarget === 'tasks-pane-' + project.id) {
-                    setTimeout(initKanban, 100); // Small delay to ensure DOM is ready
+                    console.log('Tasks tab is first visible, initializing Kanban immediately');
+                    setTimeout(initKanban, 200); // Slightly longer delay to ensure DOM is ready
                 }
                 
-                // Initialize when Tasks tab is clicked
-                nav.addEventListener('click', (e) => {
+                // Listen for when this specific project's Tasks tab is clicked
+                const projectNav = nav;
+                const tasksPaneId = 'tasks-pane-' + project.id;
+                
+                projectNav.addEventListener('click', (e) => {
                     if (e.target.classList.contains('details-nav-button') && 
-                        e.target.dataset.paneTarget === 'tasks-pane-' + project.id) {
+                        e.target.dataset.paneTarget === tasksPaneId) {
+                        console.log('Tasks tab clicked for project:', project.id);
                         setTimeout(initKanban, 100);
                     }
                 });
+                
+                // Also try to initialize when the project is expanded (backup)
+                setTimeout(() => {
+                    if (!kanbanInitialized && tasksPane.offsetParent !== null) {
+                        console.log('Backup initialization for visible Kanban');
+                        initKanban();
+                    }
+                }, 500);
             } else {
                 // For regular projects, show traditional task list
                 const tasksContainer = document.createElement('div');
