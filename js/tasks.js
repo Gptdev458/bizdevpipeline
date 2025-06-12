@@ -34,34 +34,59 @@ async function getTasksByProjectId(projectId, parentId = null) {
             return [];
         }
 
-        // Start with basic project filter
-        const filters = { project_id: projectId };
+        // Try both column naming conventions - the database seems to use 'projectId' (camelCase)
+        // but our code has been trying to use 'project_id' (snake_case)
         
-        // Try to add parent_task_id filter, but handle gracefully if column doesn't exist
         try {
-            if (parentId === null) {
-                // For top-level tasks (Kanban board), try to filter for null parent_task_id
-                // If this column doesn't exist, we'll catch the error and fetch all tasks instead
-                filters.parent_task_id = null;
-            } else {
-                filters.parent_task_id = parentId;
+            // First try with camelCase projectId (what the database actually has)
+            console.log('Trying to fetch with projectId (camelCase)...');
+            const filters = { projectId: projectId };
+            
+            // Only add parent filter if we need it and handle gracefully
+            if (parentId !== null) {
+                // Try both parent column naming conventions
+                filters.parentTaskId = parentId; // camelCase first
             }
             
             const data = await supabaseService.fetch('tasks', filters);
-            console.log(`Retrieved ${data.length} tasks for project ${projectId}, parentId: ${parentId}`);
-            return data;
+            console.log(`Retrieved ${data.length} tasks with camelCase projectId`);
             
-        } catch (parentFilterError) {
-            console.log('parent_task_id column might not exist, trying without parent filter:', parentFilterError);
-            
-            // If parent_task_id column doesn't exist, just fetch all tasks for the project
-            if (parentFilterError.message && parentFilterError.message.includes('parent_task_id')) {
-                console.log('Fetching all tasks for project (no parent_task_id column)');
-                const data = await supabaseService.fetch('tasks', { project_id: projectId });
-                console.log(`Retrieved ${data.length} tasks for project ${projectId} (no parent filtering)`);
+            if (data.length > 0) {
                 return data;
-            } else {
-                throw parentFilterError; // Re-throw if it's a different error
+            }
+            
+            // If no results with camelCase, try snake_case
+            console.log('No results with camelCase, trying snake_case...');
+            const snakeFilters = { project_id: projectId };
+            if (parentId !== null) {
+                snakeFilters.parent_task_id = parentId;
+            }
+            
+            const snakeData = await supabaseService.fetch('tasks', snakeFilters);
+            console.log(`Retrieved ${snakeData.length} tasks with snake_case project_id`);
+            return snakeData;
+            
+        } catch (error) {
+            console.error('Error in task fetching:', error);
+            
+            // Final fallback - try to get all tasks and filter in memory
+            console.log('Trying fallback - fetch all tasks and filter...');
+            try {
+                const allTasks = await supabaseService.fetch('tasks', {});
+                console.log('Fetched all tasks:', allTasks.length);
+                
+                // Filter by project ID (try both field names)
+                const filtered = allTasks.filter(task => 
+                    task.projectId === projectId || 
+                    task.project_id === projectId ||
+                    task.id === projectId
+                );
+                console.log(`Filtered to ${filtered.length} tasks for project ${projectId}`);
+                return filtered;
+                
+            } catch (fallbackError) {
+                console.error('Fallback also failed:', fallbackError);
+                return [];
             }
         }
         
@@ -81,50 +106,53 @@ async function createTask(projectId, taskData) {
             delete dataForSupabase.parentId;
         }
 
-        // Create the basic task first without Kanban-specific fields
+        // Create the basic task with only the fields that exist in the database
+        // Based on the debug output, the database has: id, text, projectId, completed, createdAt
+        // But NOT: description, status, position, parent_task_id
+        
         const basicTask = { 
-            project_id: projectId, 
+            projectId: projectId,  // Use camelCase projectId to match database
             text: dataForSupabase.text || dataForSupabase.title || 'Untitled',
-            description: dataForSupabase.description || '',
             completed: dataForSupabase.completed || false
         };
         
-        // Only add parentTaskId if it was provided
-        if (dataForSupabase.parentTaskId) {
-            basicTask.parent_task_id = dataForSupabase.parentTaskId;
-        }
-
-        console.log('Creating task with basic data:', basicTask);
+        // Only add fields if they were explicitly provided and we know they exist
+        // Don't add description since it doesn't exist in the schema
+        
+        console.log('Creating task with minimal data:', basicTask);
         
         try {
-            // First try with basic fields only
+            // Try with basic fields only
             const newTask = await supabaseService.insert('tasks', basicTask);
             console.log('Task created successfully with basic fields:', newTask);
             
-            // If successful and we have Kanban fields to add, try updating with them
-            if (dataForSupabase.status || dataForSupabase.position !== undefined) {
-                console.log('Attempting to add Kanban fields...');
-                try {
-                    const kanbanUpdate = {};
-                    if (dataForSupabase.status) kanbanUpdate.status = dataForSupabase.status;
-                    if (dataForSupabase.position !== undefined) kanbanUpdate.position = dataForSupabase.position;
-                    
-                    await supabaseService.update('tasks', newTask.id, kanbanUpdate);
-                    console.log('Kanban fields added successfully');
-                    
-                    // Return updated task with Kanban fields
-                    return { ...newTask, ...kanbanUpdate };
-                } catch (kanbanError) {
-                    console.log('Kanban fields failed to add (columns might not exist), but task created:', kanbanError);
-                    // Return the basic task even if Kanban fields failed
-                    return { ...newTask, status: dataForSupabase.status || 'todo' };
-                }
-            }
-            
-            return { ...newTask, status: dataForSupabase.status || 'todo' };
+            // Return the task with the status field added for Kanban compatibility
+            return { 
+                ...newTask, 
+                status: dataForSupabase.status || 'todo',
+                description: dataForSupabase.description || '' // Add to memory only, not database
+            };
             
         } catch (error) {
             console.error('Error creating basic task:', error);
+            
+            // If projectId doesn't work, try project_id
+            if (error.message && error.message.includes('projectId')) {
+                console.log('Retrying with snake_case project_id...');
+                const snakeTask = {
+                    project_id: projectId,
+                    text: dataForSupabase.text || dataForSupabase.title || 'Untitled',
+                    completed: dataForSupabase.completed || false
+                };
+                
+                const retryTask = await supabaseService.insert('tasks', snakeTask);
+                return { 
+                    ...retryTask, 
+                    status: dataForSupabase.status || 'todo',
+                    description: dataForSupabase.description || ''
+                };
+            }
+            
             throw error;
         }
         

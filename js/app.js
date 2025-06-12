@@ -238,4 +238,130 @@ window.openModal = openModal;
 window.closeModal = closeModal;
 window.populateAllRatings = populateAllRatings;
 window.showKanbanBoard = showKanbanBoard;
-window.hideKanbanBoard = hideKanbanBoard; 
+window.hideKanbanBoard = hideKanbanBoard;
+
+// Debug function to test basic database connectivity
+window.testDatabaseConnection = async function() {
+    console.log('=== DATABASE CONNECTION TEST ===');
+    
+    try {
+        // Test 1: Import check
+        console.log('1. Checking imports...');
+        console.log('supabaseService available:', typeof window.supabaseService);
+        
+        // Import supabaseService directly
+        const { supabaseService } = await import('./supabase.js');
+        console.log('supabaseService import successful:', typeof supabaseService);
+        
+        // Test 2: Basic connection test
+        console.log('2. Testing Supabase initialization...');
+        const initResult = await supabaseService.init();
+        console.log('Supabase init result:', initResult);
+        
+        // Test 3: Try to fetch any data from tasks table
+        console.log('3. Testing basic fetch from tasks table...');
+        try {
+            const testFetch = await supabaseService.fetch('tasks', {});
+            console.log('Basic fetch successful, got', testFetch.length, 'tasks');
+            
+            if (testFetch.length > 0) {
+                console.log('=== ALL TASKS IN DATABASE ===');
+                testFetch.forEach((task, index) => {
+                    console.log(`Task ${index + 1}:`, {
+                        id: task.id,
+                        text: task.text,
+                        title: task.title,
+                        projectId: task.projectId,
+                        project_id: task.project_id,
+                        status: task.status,
+                        description: task.description,
+                        completed: task.completed,
+                        createdAt: task.createdAt,
+                        created_at: task.created_at
+                    });
+                });
+                console.log('=== END ALL TASKS ===');
+            }
+        } catch (fetchError) {
+            console.error('Basic fetch failed:', fetchError);
+        }
+        
+        // Test 4: Check what projects exist
+        console.log('4. Checking available projects...');
+        try {
+            const allProjects = await supabaseService.fetch('projects', {});
+            console.log('Projects in database:', allProjects.length);
+            
+            if (allProjects.length > 0) {
+                console.log('=== ALL PROJECTS IN DATABASE ===');
+                allProjects.forEach((project, index) => {
+                    console.log(`Project ${index + 1}:`, {
+                        id: project.id,
+                        name: project.name,
+                        title: project.title,
+                        isIanCollaboration: project.isIanCollaboration,
+                        is_ian_collaboration: project.is_ian_collaboration
+                    });
+                });
+                console.log('=== END ALL PROJECTS ===');
+            }
+        } catch (projectError) {
+            console.error('Project fetch failed:', projectError);
+        }
+        
+        // Test 5: Try with a specific project ID from the UI
+        console.log('5. Testing with specific project filter...');
+        const uiProjects = document.querySelectorAll('.project-item');
+        if (uiProjects.length > 0) {
+            const firstProject = uiProjects[0];
+            const projectId = firstProject.dataset.projectId;
+            console.log('Testing with UI project ID:', projectId);
+            
+            try {
+                const projectTasks = await supabaseService.fetch('tasks', { project_id: projectId });
+                console.log('Project-specific fetch successful, got', projectTasks.length, 'tasks');
+                
+                if (projectTasks.length > 0) {
+                    console.log('Tasks for this project:', projectTasks);
+                }
+            } catch (projectError) {
+                console.error('Project-specific fetch failed:', projectError);
+            }
+        }
+        
+        // Test 6: Try creating a simple test task
+        console.log('6. Testing task creation...');
+        const projectElements = document.querySelectorAll('.project-item');
+        if (projectElements.length > 0) {
+            const firstProjectElement = projectElements[0];
+            const testProjectId = firstProjectElement.dataset.projectId;
+            
+            try {
+                const testTaskData = {
+                    text: 'DEBUG TEST TASK - ' + new Date().toISOString(),
+                    description: 'This is a test task created for debugging',
+                    completed: false
+                };
+                
+                console.log('Attempting to create test task with data:', testTaskData);
+                const createdTask = await supabaseService.insert('tasks', {
+                    project_id: testProjectId,
+                    ...testTaskData
+                });
+                console.log('Test task created successfully:', createdTask);
+                
+                // Try to fetch it back
+                const fetchBack = await supabaseService.fetch('tasks', { project_id: testProjectId });
+                console.log('Tasks after creation:', fetchBack.length);
+                
+            } catch (createError) {
+                console.error('Test task creation failed:', createError);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Database connection test failed:', error);
+    }
+    
+    console.log('=== END DATABASE CONNECTION TEST ===');
+}; 

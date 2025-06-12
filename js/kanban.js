@@ -108,6 +108,44 @@ window.showKanbanBoard = function(project) {
         projectTitle.textContent = `${project.title || project.name || 'Project'} - Kanban Board`;
     }
     
+    // Create the board structure in the kanban-container
+    const kanbanContainer = kanbanView.querySelector('#kanban-container');
+    if (kanbanContainer) {
+        const kanbanHTML = `
+            <div class="kanban-board">
+                <div class="kanban-column" data-status="todo">
+                    <div class="column-header todo-header">
+                        <h3>To Do</h3>
+                        <button class="add-card-btn" data-status="todo">+ Add Card</button>
+                    </div>
+                    <div class="cards-container" data-status="todo"></div>
+                </div>
+                <div class="kanban-column" data-status="doing">
+                    <div class="column-header doing-header">
+                        <h3>Doing</h3>
+                        <button class="add-card-btn" data-status="doing">+ Add Card</button>
+                    </div>
+                    <div class="cards-container" data-status="doing"></div>
+                </div>
+                <div class="kanban-column" data-status="waiting">
+                    <div class="column-header waiting-header">
+                        <h3>Waiting Feedback</h3>
+                        <button class="add-card-btn" data-status="waiting">+ Add Card</button>
+                    </div>
+                    <div class="cards-container" data-status="waiting"></div>
+                </div>
+                <div class="kanban-column" data-status="done">
+                    <div class="column-header done-header">
+                        <h3>Done</h3>
+                        <button class="add-card-btn" data-status="done">+ Add Card</button>
+                    </div>
+                    <div class="cards-container" data-status="done"></div>
+                </div>
+            </div>
+        `;
+        kanbanContainer.innerHTML = kanbanHTML;
+    }
+    
     // Show the kanban view
     kanbanView.style.display = 'block';
     
@@ -268,8 +306,19 @@ async function loadTasksAndRender() {
 
 // Render the board
 function renderBoard() {
-    const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
-    if (!boardContainer) return;
+    let boardContainer;
+    if (isEmbeddedMode) {
+        boardContainer = embeddedContainer;
+    } else {
+        // For modal mode, look inside the kanban-container
+        const kanbanView = document.getElementById('kanban-view');
+        boardContainer = kanbanView ? kanbanView.querySelector('#kanban-container') : null;
+    }
+    
+    if (!boardContainer) {
+        console.error('Board container not found');
+        return;
+    }
     
     Object.keys(boardData).forEach(status => {
         const cardsContainer = boardContainer.querySelector(`.cards-container[data-status="${status}"]`);
@@ -280,6 +329,8 @@ function renderBoard() {
                 cardElement.innerHTML = renderCard(task);
                 cardsContainer.appendChild(cardElement.firstElementChild);
             });
+        } else {
+            console.log(`Cards container for status ${status} not found`);
         }
     });
 }
@@ -327,13 +378,26 @@ function renderCard(task) {
 
 // Add new card to a column
 async function addCard(status) {
+    console.log('addCard called with status:', status);
+    console.log('currentProjectId:', currentProjectId);
+    
+    if (!currentProjectId) {
+        showStatus('Error: No project selected', true);
+        console.error('No project ID available for adding card');
+        return;
+    }
+    
     const title = prompt('Enter card title:');
-    if (!title) return;
+    if (!title) {
+        console.log('User cancelled card creation');
+        return;
+    }
     
     const description = prompt('Enter card description (optional):') || '';
     
     try {
         showStatus('Creating card...', false);
+        console.log('About to create task with title:', title, 'description:', description);
         
         // Create task with appropriate field names based on existing data structure
         const taskData = {
@@ -341,25 +405,48 @@ async function addCard(status) {
             description: description,
             completed: false,
             status: status,
-            position: boardData[status].length
+            position: boardData[status] ? boardData[status].length : 0
         };
         
+        console.log('Task data to create:', taskData);
+        console.log('Calling taskService.createTask...');
+        
         const newTask = await taskService.createTask(currentProjectId, taskData);
+        console.log('Task created successfully:', newTask);
         
         // Add to board data with fallback for missing status
         const taskStatus = newTask.status || status;
+        console.log('Adding task to board with status:', taskStatus);
+        
         if (!boardData[taskStatus]) {
+            console.log('Creating new array for status:', taskStatus);
             boardData[taskStatus] = [];
         }
         boardData[taskStatus].push(newTask);
         
+        console.log('Updated board data:', boardData);
+        console.log('Board data summary after add:', {
+            todo: boardData.todo.length,
+            doing: boardData.doing.length,
+            waiting: boardData.waiting.length,
+            done: boardData.done.length
+        });
+        
         // Re-render the board
+        console.log('Re-rendering board...');
         renderBoard();
         setupEventListeners();
         
         showStatus('Card created successfully', false);
     } catch (error) {
         console.error('Error creating card:', error);
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint,
+            stack: error.stack
+        });
         showStatus('Error creating card: ' + (error.message || 'Unknown error'), true);
     }
 }
@@ -519,7 +606,15 @@ function updateUIOnly(task, newStatus) {
 function setupEventListeners() {
     console.log('setupEventListeners called, isEmbeddedMode:', isEmbeddedMode);
     
-    const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
+    let boardContainer;
+    if (isEmbeddedMode) {
+        boardContainer = embeddedContainer;
+    } else {
+        // For modal mode, look inside the kanban-container
+        const kanbanView = document.getElementById('kanban-view');
+        boardContainer = kanbanView ? kanbanView.querySelector('#kanban-container') : null;
+    }
+    
     console.log('boardContainer:', boardContainer);
     
     if (!boardContainer) {
@@ -534,48 +629,17 @@ function setupEventListeners() {
         element.removeAttribute('data-listener-attached');
     });
     
-    // Add card buttons
-    const addButtons = boardContainer.querySelectorAll('.add-card-btn');
-    console.log('Found add buttons:', addButtons.length);
-    addButtons.forEach(btn => {
-        if (!btn.hasAttribute('data-listener-attached')) {
-            btn.setAttribute('data-listener-attached', 'true');
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const status = btn.dataset.status;
-                addCard(status);
-            });
-        }
-    });
+    // Use event delegation instead of direct listeners - this is more reliable
+    // Remove any existing delegated listeners first
+    boardContainer.removeEventListener('click', handleBoardClick);
     
-    // Edit and delete buttons
-    const editButtons = boardContainer.querySelectorAll('.edit-card-btn');
-    const deleteButtons = boardContainer.querySelectorAll('.delete-card-btn');
-    console.log('Found edit buttons:', editButtons.length, 'delete buttons:', deleteButtons.length);
+    // Add single delegated click handler for all buttons
+    boardContainer.addEventListener('click', handleBoardClick);
+    boardContainer.setAttribute('data-listener-attached', 'true');
     
-    editButtons.forEach(btn => {
-        if (!btn.hasAttribute('data-listener-attached')) {
-            btn.setAttribute('data-listener-attached', 'true');
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const taskId = btn.dataset.taskId;
-                editCard(taskId);
-            });
-        }
-    });
+    console.log('Event delegation set up on board container');
     
-    deleteButtons.forEach(btn => {
-        if (!btn.hasAttribute('data-listener-attached')) {
-            btn.setAttribute('data-listener-attached', 'true');
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const taskId = btn.dataset.taskId;
-                deleteCard(taskId);
-            });
-        }
-    });
-    
-    // Drag and drop for cards
+    // Still set up drag and drop on individual cards
     const cards = boardContainer.querySelectorAll('.kanban-card');
     console.log('Found kanban cards:', cards.length);
     
@@ -624,6 +688,43 @@ function setupEventListeners() {
     });
     
     console.log('setupEventListeners completed');
+}
+
+// Centralized click handler for all board interactions
+function handleBoardClick(e) {
+    console.log('Board click detected:', e.target);
+    
+    // Handle add card buttons
+    if (e.target.classList.contains('add-card-btn')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const status = e.target.dataset.status;
+        console.log('Add card button clicked for status:', status);
+        addCard(status);
+        return;
+    }
+    
+    // Handle edit card buttons
+    if (e.target.classList.contains('edit-card-btn')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const taskId = e.target.dataset.taskId;
+        console.log('Edit card button clicked for task:', taskId);
+        editCard(taskId);
+        return;
+    }
+    
+    // Handle delete card buttons
+    if (e.target.classList.contains('delete-card-btn')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const taskId = e.target.dataset.taskId;
+        console.log('Delete card button clicked for task:', taskId);
+        deleteCard(taskId);
+        return;
+    }
+    
+    console.log('Click not handled by any button handler');
 }
 
 // Helper functions
@@ -769,4 +870,270 @@ function handleDrop(e) {
             console.error('Missing taskId or newStatus:', { taskId, newStatus });
         }
     }
-} 
+}
+
+// Debug function to test database connection and task loading
+window.debugKanbanDatabase = async function() {
+    console.log('=== KANBAN DATABASE DEBUG ===');
+    
+    if (!currentProjectId) {
+        console.error('No current project ID set');
+        return;
+    }
+    
+    console.log('Current project ID:', currentProjectId);
+    
+    try {
+        console.log('Testing basic database connection...');
+        
+        // Test 1: Import supabaseService through taskService module
+        console.log('Test 1: Importing supabaseService...');
+        const { supabaseService } = await import('./supabase.js');
+        console.log('supabaseService imported:', typeof supabaseService);
+        
+        // Test 2: Try to fetch all tasks for this project
+        console.log('Test 2: Fetching all tasks for project...');
+        const allTasks = await supabaseService.fetch('tasks', { project_id: currentProjectId });
+        console.log('All tasks result:', allTasks);
+        
+        // Test 3: Try using taskService.getTasksByProjectId
+        console.log('Test 3: Using taskService.getTasksByProjectId...');
+        const serviceTasks = await taskService.getTasksByProjectId(currentProjectId);
+        console.log('TaskService result:', serviceTasks);
+        
+        // Test 4: Try to create a simple task
+        console.log('Test 4: Trying to create a simple task...');
+        const testTask = {
+            text: 'Debug test task',
+            description: 'This is a test task for debugging',
+            completed: false
+        };
+        
+        console.log('Attempting to create task with data:', testTask);
+        const createdTask = await taskService.createTask(currentProjectId, testTask);
+        console.log('Created task result:', createdTask);
+        
+        // Test 5: Check if the task appears in subsequent fetch
+        console.log('Test 5: Re-fetching tasks after creation...');
+        const afterCreateTasks = await taskService.getTasksByProjectId(currentProjectId);
+        console.log('Tasks after creation:', afterCreateTasks);
+        
+        // Test 6: Check if add button event listeners are working
+        console.log('Test 6: Checking add button event listeners...');
+        const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
+        if (boardContainer) {
+            const addButtons = boardContainer.querySelectorAll('.add-card-btn');
+            console.log('Found add buttons:', addButtons.length);
+            addButtons.forEach((btn, index) => {
+                console.log(`Button ${index}:`, {
+                    status: btn.dataset.status,
+                    hasListener: btn.hasAttribute('data-listener-attached'),
+                    onclick: btn.onclick
+                });
+            });
+        }
+        
+    } catch (error) {
+        console.error('Debug test failed:', error);
+        console.error('Error details:', {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint
+        });
+    }
+    
+    console.log('=== END KANBAN DATABASE DEBUG ===');
+};
+
+// Test function to check if add card buttons are working
+window.testAddCardButtons = function() {
+    console.log('=== TESTING ADD CARD BUTTONS ===');
+    
+    const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
+    if (!boardContainer) {
+        console.error('No board container found');
+        return;
+    }
+    
+    const addButtons = boardContainer.querySelectorAll('.add-card-btn');
+    console.log('Found add buttons:', addButtons.length);
+    
+    addButtons.forEach((btn, index) => {
+        console.log(`Button ${index}:`, {
+            element: btn,
+            status: btn.dataset.status,
+            text: btn.textContent,
+            visible: btn.offsetParent !== null,
+            disabled: btn.disabled,
+            styles: window.getComputedStyle(btn).display
+        });
+        
+        // Test click programmatically
+        console.log(`Testing click on button ${index} (${btn.dataset.status})`);
+        try {
+            btn.click();
+            console.log(`Click test successful for ${btn.dataset.status}`);
+        } catch (error) {
+            console.error(`Click test failed for ${btn.dataset.status}:`, error);
+        }
+    });
+    
+    console.log('Current project ID:', currentProjectId);
+    console.log('Board data:', boardData);
+    
+    console.log('=== END ADD CARD BUTTON TEST ===');
+};
+
+// Function to refresh the Kanban board
+window.refreshKanbanBoard = function() {
+    console.log('=== REFRESHING KANBAN BOARD ===');
+    
+    if (!currentProjectId) {
+        console.error('No current project ID');
+        return;
+    }
+    
+    console.log('Refreshing board for project:', currentProjectId);
+    loadTasksAndRender();
+    
+    console.log('=== KANBAN BOARD REFRESHED ===');
+};
+
+// Comprehensive DOM debugging function
+window.debugKanbanDOM = function() {
+    console.log('=== KANBAN DOM DEBUG ===');
+    
+    console.log('Current project ID:', currentProjectId);
+    console.log('Is embedded mode:', isEmbeddedMode);
+    console.log('Embedded container:', embeddedContainer);
+    
+    // Check board container
+    const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
+    console.log('Board container:', boardContainer);
+    
+    if (!boardContainer) {
+        console.error('NO BOARD CONTAINER FOUND!');
+        return;
+    }
+    
+    console.log('Board container HTML:', boardContainer.innerHTML.substring(0, 500) + '...');
+    console.log('Board container children:', boardContainer.children.length);
+    
+    // Check for kanban board structure
+    const kanbanBoard = boardContainer.querySelector('.kanban-board');
+    console.log('Kanban board element:', kanbanBoard);
+    
+    if (kanbanBoard) {
+        console.log('Kanban board HTML:', kanbanBoard.innerHTML.substring(0, 500) + '...');
+        
+        // Check columns
+        const columns = kanbanBoard.querySelectorAll('.kanban-column');
+        console.log('Found columns:', columns.length);
+        
+        columns.forEach((column, index) => {
+            const status = column.dataset.status;
+            const cardsContainer = column.querySelector('.cards-container');
+            const cards = cardsContainer ? cardsContainer.children : [];
+            const addButton = column.querySelector('.add-card-btn');
+            
+            console.log(`Column ${index} (${status}):`, {
+                element: column,
+                status: status,
+                cardsContainer: cardsContainer,
+                cardCount: cards.length,
+                addButton: addButton,
+                addButtonText: addButton ? addButton.textContent : 'NO BUTTON',
+                addButtonVisible: addButton ? addButton.offsetParent !== null : false,
+                containerHTML: cardsContainer ? cardsContainer.innerHTML.substring(0, 200) : 'NO CONTAINER'
+            });
+            
+            // Log individual cards
+            for (let i = 0; i < cards.length; i++) {
+                const card = cards[i];
+                console.log(`  Card ${i}:`, {
+                    taskId: card.dataset.taskId,
+                    visible: card.offsetParent !== null,
+                    text: card.textContent.substring(0, 50),
+                    classes: Array.from(card.classList)
+                });
+            }
+        });
+    }
+    
+    // Check current board data
+    console.log('Current board data:', boardData);
+    console.log('Board data summary:', {
+        todo: boardData.todo ? boardData.todo.length : 'undefined',
+        doing: boardData.doing ? boardData.doing.length : 'undefined', 
+        waiting: boardData.waiting ? boardData.waiting.length : 'undefined',
+        done: boardData.done ? boardData.done.length : 'undefined'
+    });
+    
+    // Check CSS styles
+    if (boardContainer) {
+        const styles = window.getComputedStyle(boardContainer);
+        console.log('Board container styles:', {
+            display: styles.display,
+            visibility: styles.visibility,
+            opacity: styles.opacity,
+            position: styles.position,
+            zIndex: styles.zIndex
+        });
+    }
+    
+    console.log('=== END KANBAN DOM DEBUG ===');
+};
+
+// Manual render test function
+window.testRenderBoard = function() {
+    console.log('=== TESTING RENDER BOARD ===');
+    
+    if (!currentProjectId) {
+        console.error('No current project ID');
+        return;
+    }
+    
+    console.log('Current board data before render:', boardData);
+    
+    const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
+    if (!boardContainer) {
+        console.error('No board container found');
+        return;
+    }
+    
+    console.log('Board container found:', boardContainer);
+    
+    // Manual render each status
+    Object.keys(boardData).forEach(status => {
+        console.log(`Rendering status: ${status} with ${boardData[status].length} tasks`);
+        
+        const cardsContainer = boardContainer.querySelector(`.cards-container[data-status="${status}"]`);
+        console.log(`Cards container for ${status}:`, cardsContainer);
+        
+        if (cardsContainer) {
+            console.log(`Before clear - container has ${cardsContainer.children.length} children`);
+            cardsContainer.innerHTML = '';
+            console.log(`After clear - container has ${cardsContainer.children.length} children`);
+            
+            boardData[status].forEach((task, index) => {
+                console.log(`Rendering task ${index}:`, task);
+                
+                const cardHTML = renderCard(task);
+                console.log(`Generated card HTML:`, cardHTML);
+                
+                const cardElement = document.createElement('div');
+                cardElement.innerHTML = cardHTML;
+                const card = cardElement.firstElementChild;
+                
+                console.log(`Created card element:`, card);
+                cardsContainer.appendChild(card);
+                console.log(`Appended card to container. Container now has ${cardsContainer.children.length} children`);
+            });
+        } else {
+            console.error(`No cards container found for status: ${status}`);
+        }
+    });
+    
+    console.log('=== END RENDER BOARD TEST ===');
+}; 
