@@ -1604,4 +1604,36 @@ window.testRealButtons = function() {
             console.log('  ❌ Click failed:', error);
         }
     });
+};
+
+// Test function to verify multiple board support
+window.testMultipleBoardsFix = function() {
+    console.log('=== TESTING MULTIPLE BOARDS FIX ===');
+    
+    console.log('Number of Kanban instances:', kanbanInstances.size);
+    
+    let instanceIndex = 0;
+    for (const [container, instance] of kanbanInstances) {
+        console.log(`Instance ${instanceIndex}:`, {
+            projectId: instance.projectId,
+            containerElement: container,
+            taskCounts: {
+                todo: instance.boardData.todo.length,
+                doing: instance.boardData.doing.length,
+                waiting: instance.boardData.waiting.length,
+                done: instance.boardData.done.length
+            }
+        });
+        
+        // Test if buttons exist and have correct project IDs
+        const buttons = container.querySelectorAll('.add-card-btn');
+        console.log(`  Buttons found: ${buttons.length}`);
+        buttons.forEach((btn, btnIndex) => {
+            console.log(`    Button ${btnIndex}: status=${btn.dataset.status}, projectId=${btn.dataset.projectId}`);
+        });
+        
+        instanceIndex++;
+    }
+    
+    console.log('=== TEST COMPLETE ===');
 }; 
