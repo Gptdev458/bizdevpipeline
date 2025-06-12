@@ -29,7 +29,7 @@ function showStatus(message, isError = false) {
 const BOARD_COLUMNS = [
     { id: 'todo', title: 'To Do', color: '#e3f2fd' },
     { id: 'doing', title: 'Doing', color: '#fff3e0' },
-    { id: 'waiting_feedback', title: 'Waiting Feedback', color: '#fce4ec' },
+    { id: 'waiting', title: 'Waiting Feedback', color: '#fce4ec' },
     { id: 'done', title: 'Done', color: '#e8f5e8' }
 ];
 
@@ -1136,4 +1136,172 @@ window.testRenderBoard = function() {
     });
     
     console.log('=== END RENDER BOARD TEST ===');
+};
+
+// Test function for debugging the complete Kanban flow
+window.debugKanbanComplete = function() {
+    console.log('=== COMPLETE KANBAN DEBUG ===');
+    console.log('1. Current state:');
+    console.log('   - isEmbeddedMode:', isEmbeddedMode);
+    console.log('   - currentProjectId:', currentProjectId);
+    console.log('   - boardData:', boardData);
+    
+    console.log('2. DOM elements:');
+    const kanbanView = document.getElementById('kanban-view');
+    console.log('   - kanban-view element:', kanbanView);
+    
+    if (kanbanView) {
+        const kanbanContainer = kanbanView.querySelector('#kanban-container');
+        console.log('   - kanban-container:', kanbanContainer);
+        
+        if (kanbanContainer) {
+            const board = kanbanContainer.querySelector('.kanban-board');
+            console.log('   - kanban-board:', board);
+            
+            const columns = kanbanContainer.querySelectorAll('.kanban-column');
+            console.log('   - kanban columns found:', columns.length);
+            
+            const containers = kanbanContainer.querySelectorAll('.cards-container');
+            console.log('   - cards containers found:', containers.length);
+            
+            const buttons = kanbanContainer.querySelectorAll('.add-card-btn');
+            console.log('   - add card buttons found:', buttons.length);
+            
+            buttons.forEach((btn, i) => {
+                console.log(`   - Button ${i}:`, {
+                    status: btn.dataset.status,
+                    hasEventListener: btn.hasAttribute('data-listener-attached'),
+                    text: btn.textContent
+                });
+            });
+            
+            const cards = kanbanContainer.querySelectorAll('.kanban-card');
+            console.log('   - kanban cards found:', cards.length);
+        }
+    }
+    
+    console.log('3. Testing button click manually...');
+    const firstButton = document.querySelector('.add-card-btn[data-status="todo"]');
+    if (firstButton) {
+        console.log('   - Found todo button, simulating click...');
+        firstButton.click();
+    } else {
+        console.log('   - No todo button found!');
+    }
+};
+
+// Test function to check task service availability
+window.testTaskService = async function() {
+    console.log('=== TESTING TASK SERVICE ===');
+    
+    console.log('1. TaskService import check:');
+    console.log('   - taskService object:', taskService);
+    console.log('   - taskService methods:', Object.keys(taskService || {}));
+    
+    if (!taskService) {
+        console.error('   - ERROR: taskService is not available!');
+        return;
+    }
+    
+    console.log('2. Testing getCurrentProjectId:');
+    const testProjectId = 'test-project-id';
+    currentProjectId = testProjectId;
+    console.log('   - Set currentProjectId to:', currentProjectId);
+    
+    console.log('3. Testing getTasksByProjectId:');
+    if (typeof taskService.getTasksByProjectId === 'function') {
+        try {
+            const tasks = await taskService.getTasksByProjectId(currentProjectId);
+            console.log('   - Tasks returned:', tasks);
+            console.log('   - Task count:', tasks ? tasks.length : 'null/undefined');
+            
+            if (tasks && tasks.length > 0) {
+                console.log('   - First task structure:', tasks[0]);
+            }
+        } catch (error) {
+            console.error('   - Error getting tasks:', error);
+        }
+    } else {
+        console.error('   - ERROR: getTasksByProjectId is not a function!');
+    }
+    
+    console.log('4. Testing createTask (dry run):');
+    if (typeof taskService.createTask === 'function') {
+        console.log('   - createTask function exists');
+        // Don't actually create a task, just check it exists
+    } else {
+        console.error('   - ERROR: createTask is not a function!');
+    }
+};
+
+// Complete flow test for Kanban board
+window.testKanbanFlow = async function(projectId) {
+    console.log('=== TESTING COMPLETE KANBAN FLOW ===');
+    
+    // Create a test project object if not provided
+    const testProject = {
+        id: projectId || 'test-project-123',
+        title: 'Test Project'
+    };
+    
+    console.log('1. Testing showKanbanBoard function...');
+    try {
+        window.showKanbanBoard(testProject);
+        console.log('   ✓ showKanbanBoard called successfully');
+    } catch (error) {
+        console.error('   ✗ Error in showKanbanBoard:', error);
+        return;
+    }
+    
+    console.log('2. Checking DOM structure after showKanbanBoard...');
+    const kanbanView = document.getElementById('kanban-view');
+    console.log('   - kanban-view visible:', kanbanView ? kanbanView.style.display !== 'none' : 'not found');
+    
+    const kanbanContainer = kanbanView ? kanbanView.querySelector('#kanban-container') : null;
+    console.log('   - kanban-container found:', !!kanbanContainer);
+    
+    const board = kanbanContainer ? kanbanContainer.querySelector('.kanban-board') : null;
+    console.log('   - kanban-board created:', !!board);
+    
+    const columns = board ? board.querySelectorAll('.kanban-column') : [];
+    console.log('   - columns created:', columns.length);
+    
+    const containers = board ? board.querySelectorAll('.cards-container') : [];
+    console.log('   - card containers created:', containers.length);
+    
+    const buttons = board ? board.querySelectorAll('.add-card-btn') : [];
+    console.log('   - add buttons created:', buttons.length);
+    
+    if (columns.length !== 4 || containers.length !== 4 || buttons.length !== 4) {
+        console.error('   ✗ DOM structure incomplete!');
+        return;
+    }
+    
+    console.log('3. Waiting for loadTasksAndRender to complete...');
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+    
+    console.log('4. Checking final state...');
+    console.log('   - currentProjectId:', currentProjectId);
+    console.log('   - boardData:', boardData);
+    
+    const finalCards = board.querySelectorAll('.kanban-card');
+    console.log('   - cards rendered:', finalCards.length);
+    
+    console.log('5. Testing add button click...');
+    const todoButton = board.querySelector('.add-card-btn[data-status="todo"]');
+    if (todoButton) {
+        console.log('   - Found todo button, testing click event...');
+        
+        // Add a temporary click listener to see if events work
+        todoButton.addEventListener('click', function testClick(e) {
+            console.log('   ✓ Button click event fired!', e);
+            todoButton.removeEventListener('click', testClick);
+        });
+        
+        todoButton.click();
+    } else {
+        console.error('   ✗ Todo button not found!');
+    }
+    
+    console.log('=== KANBAN FLOW TEST COMPLETE ===');
 }; 
