@@ -46,9 +46,26 @@ let embeddedContainer = null;
 
 // Initialize embedded Kanban board
 window.initEmbeddedKanban = function(project, container) {
+    console.log('=== INIT EMBEDDED KANBAN CALLED ===');
+    console.log('Project:', project);
+    console.log('Container:', container);
+    console.log('Container connected to DOM:', container ? container.isConnected : 'no container');
+    
+    if (!container) {
+        console.error('No container provided to initEmbeddedKanban');
+        return;
+    }
+    
+    if (!project || !project.id) {
+        console.error('No valid project provided to initEmbeddedKanban');
+        return;
+    }
+    
     isEmbeddedMode = true;
     embeddedContainer = container;
     currentProjectId = project.id;
+    
+    console.log('Setting embedded mode. currentProjectId:', currentProjectId);
     
     // Create kanban board HTML structure inside the container
     const kanbanHTML = `
@@ -84,9 +101,33 @@ window.initEmbeddedKanban = function(project, container) {
         </div>
     `;
     
+    console.log('Setting innerHTML for container...');
     container.innerHTML = kanbanHTML;
     
+    // Verify DOM structure was created
+    console.log('Verifying DOM structure...');
+    const board = container.querySelector('.kanban-board');
+    const columns = container.querySelectorAll('.kanban-column');
+    const containers = container.querySelectorAll('.cards-container');
+    const buttons = container.querySelectorAll('.add-card-btn');
+    
+    console.log('DOM verification results:', {
+        board: !!board,
+        columns: columns.length,
+        containers: containers.length,
+        buttons: buttons.length
+    });
+    
+    if (columns.length !== 4) {
+        console.error('DOM structure not created properly!');
+        console.log('Container HTML after setting:', container.innerHTML.substring(0, 200) + '...');
+        return;
+    }
+    
+    console.log('✅ DOM structure created successfully');
+    
     // Load tasks and render board
+    console.log('Calling loadTasksAndRender...');
     loadTasksAndRender();
 };
 
@@ -1304,4 +1345,79 @@ window.testKanbanFlow = async function(projectId) {
     }
     
     console.log('=== KANBAN FLOW TEST COMPLETE ===');
+};
+
+// Force test function to manually create a working Kanban board
+window.forceTestKanban = function() {
+    console.log('=== FORCE TESTING KANBAN ===');
+    
+    // 1. Create a test container
+    const testContainer = document.createElement('div');
+    testContainer.id = 'force-test-kanban';
+    testContainer.style.cssText = `
+        border: 3px solid red;
+        padding: 20px;
+        margin: 20px;
+        background: #f9f9f9;
+        min-height: 400px;
+    `;
+    
+    // Add to top of page
+    document.body.insertBefore(testContainer, document.body.firstChild);
+    
+    // 2. Use a real project ID from your database
+    const realProject = {
+        id: 'f586fc45-79d0-42d2-90a2-e082cbe5ac6c', // Product event 25.6 (has 6 tasks)
+        name: 'Product event 25.6'
+    };
+    
+    console.log('1. Creating test container and project...');
+    console.log('Test container created:', testContainer);
+    console.log('Using real project:', realProject);
+    
+    // 3. Force initialize embedded Kanban
+    console.log('2. Calling initEmbeddedKanban...');
+    window.initEmbeddedKanban(realProject, testContainer);
+    
+    // 4. Wait and then test functionality
+    setTimeout(() => {
+        console.log('3. Testing after 2 seconds...');
+        
+        const board = testContainer.querySelector('.kanban-board');
+        const buttons = testContainer.querySelectorAll('.add-card-btn');
+        const cards = testContainer.querySelectorAll('.kanban-card');
+        
+        console.log('Final test results:', {
+            board: !!board,
+            buttons: buttons.length,
+            cards: cards.length,
+            boardData: boardData,
+            currentProjectId: currentProjectId,
+            isEmbeddedMode: isEmbeddedMode
+        });
+        
+        if (buttons.length > 0) {
+            console.log('✅ Found buttons! Testing click...');
+            
+            // Add a manual event listener to test
+            const firstButton = buttons[0];
+            console.log('First button:', firstButton);
+            console.log('Button status:', firstButton.dataset.status);
+            
+            // Test manual click
+            console.log('Simulating button click...');
+            firstButton.click();
+        } else {
+            console.log('❌ No buttons found');
+        }
+        
+        // Add close button
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '❌ Close Test';
+        closeBtn.style.cssText = 'position: absolute; top: 5px; right: 5px; z-index: 1000;';
+        closeBtn.onclick = () => testContainer.remove();
+        testContainer.style.position = 'relative';
+        testContainer.appendChild(closeBtn);
+        
+    }, 3000);
 }; 
