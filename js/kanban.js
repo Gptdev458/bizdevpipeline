@@ -33,16 +33,8 @@ const BOARD_COLUMNS = [
     { id: 'done', title: 'Done', color: '#e8f5e8' }
 ];
 
-// Global variables
-let currentProjectId = null;
-let boardData = {
-    'todo': [],
-    'doing': [],
-    'waiting': [],
-    'done': []
-};
-let isEmbeddedMode = false;
-let embeddedContainer = null;
+// Store instances for each container to avoid global state conflicts
+const kanbanInstances = new Map();
 
 // Initialize embedded Kanban board
 window.initEmbeddedKanban = function(project, container) {
@@ -61,40 +53,52 @@ window.initEmbeddedKanban = function(project, container) {
         return;
     }
     
-    isEmbeddedMode = true;
-    embeddedContainer = container;
-    currentProjectId = project.id;
+    // Create instance-specific data
+    const instance = {
+        projectId: project.id,
+        container: container,
+        boardData: {
+            'todo': [],
+            'doing': [],
+            'waiting': [],
+            'done': []
+        },
+        isEmbeddedMode: true
+    };
     
-    console.log('Setting embedded mode. currentProjectId:', currentProjectId);
+    // Store instance using container as key
+    kanbanInstances.set(container, instance);
+    
+    console.log('Setting embedded mode. projectId:', instance.projectId);
     
     // Create kanban board HTML structure inside the container
     const kanbanHTML = `
-        <div class="kanban-board">
+        <div class="kanban-board" data-project-id="${project.id}">
             <div class="kanban-column" data-status="todo">
                 <div class="column-header todo-header">
                     <h3>To Do</h3>
-                    <button class="add-card-btn" data-status="todo">+ Add Card</button>
+                    <button class="add-card-btn" data-status="todo" data-project-id="${project.id}">+ Add Card</button>
                 </div>
                 <div class="cards-container" data-status="todo"></div>
             </div>
             <div class="kanban-column" data-status="doing">
                 <div class="column-header doing-header">
                     <h3>Doing</h3>
-                    <button class="add-card-btn" data-status="doing">+ Add Card</button>
+                    <button class="add-card-btn" data-status="doing" data-project-id="${project.id}">+ Add Card</button>
                 </div>
                 <div class="cards-container" data-status="doing"></div>
             </div>
             <div class="kanban-column" data-status="waiting">
                 <div class="column-header waiting-header">
                     <h3>Waiting Feedback</h3>
-                    <button class="add-card-btn" data-status="waiting">+ Add Card</button>
+                    <button class="add-card-btn" data-status="waiting" data-project-id="${project.id}">+ Add Card</button>
                 </div>
                 <div class="cards-container" data-status="waiting"></div>
             </div>
             <div class="kanban-column" data-status="done">
                 <div class="column-header done-header">
                     <h3>Done</h3>
-                    <button class="add-card-btn" data-status="done">+ Add Card</button>
+                    <button class="add-card-btn" data-status="done" data-project-id="${project.id}">+ Add Card</button>
                 </div>
                 <div class="cards-container" data-status="done"></div>
             </div>
@@ -128,20 +132,32 @@ window.initEmbeddedKanban = function(project, container) {
     
     // Load tasks and render board
     console.log('Calling loadTasksAndRender...');
-    loadTasksAndRender();
+    loadTasksAndRender(instance);
 };
 
 // Show Kanban board (existing modal mode)
 window.showKanbanBoard = function(project) {
-    isEmbeddedMode = false;
-    embeddedContainer = null;
-    currentProjectId = project.id;
-    
     const kanbanView = document.getElementById('kanban-view');
     if (!kanbanView) {
         console.error('Kanban view container not found');
         return;
     }
+    
+    // Create instance for modal mode
+    const instance = {
+        projectId: project.id,
+        container: kanbanView.querySelector('#kanban-container'),
+        boardData: {
+            'todo': [],
+            'doing': [],
+            'waiting': [],
+            'done': []
+        },
+        isEmbeddedMode: false
+    };
+    
+    // Store instance using kanban view as key
+    kanbanInstances.set(kanbanView, instance);
     
     // Update project title
     const projectTitle = kanbanView.querySelector('.kanban-header h2');
@@ -153,32 +169,32 @@ window.showKanbanBoard = function(project) {
     const kanbanContainer = kanbanView.querySelector('#kanban-container');
     if (kanbanContainer) {
         const kanbanHTML = `
-            <div class="kanban-board">
+            <div class="kanban-board" data-project-id="${project.id}">
                 <div class="kanban-column" data-status="todo">
                     <div class="column-header todo-header">
                         <h3>To Do</h3>
-                        <button class="add-card-btn" data-status="todo">+ Add Card</button>
+                        <button class="add-card-btn" data-status="todo" data-project-id="${project.id}">+ Add Card</button>
                     </div>
                     <div class="cards-container" data-status="todo"></div>
                 </div>
                 <div class="kanban-column" data-status="doing">
                     <div class="column-header doing-header">
                         <h3>Doing</h3>
-                        <button class="add-card-btn" data-status="doing">+ Add Card</button>
+                        <button class="add-card-btn" data-status="doing" data-project-id="${project.id}">+ Add Card</button>
                     </div>
                     <div class="cards-container" data-status="doing"></div>
                 </div>
                 <div class="kanban-column" data-status="waiting">
                     <div class="column-header waiting-header">
                         <h3>Waiting Feedback</h3>
-                        <button class="add-card-btn" data-status="waiting">+ Add Card</button>
+                        <button class="add-card-btn" data-status="waiting" data-project-id="${project.id}">+ Add Card</button>
                     </div>
                     <div class="cards-container" data-status="waiting"></div>
                 </div>
                 <div class="kanban-column" data-status="done">
                     <div class="column-header done-header">
                         <h3>Done</h3>
-                        <button class="add-card-btn" data-status="done">+ Add Card</button>
+                        <button class="add-card-btn" data-status="done" data-project-id="${project.id}">+ Add Card</button>
                     </div>
                     <div class="cards-container" data-status="done"></div>
                 </div>
@@ -191,50 +207,75 @@ window.showKanbanBoard = function(project) {
     kanbanView.style.display = 'block';
     
     // Load tasks and render board
-    loadTasksAndRender();
+    loadTasksAndRender(instance);
 };
 
 // Hide Kanban board (modal mode only)
 window.hideKanbanBoard = function() {
-    if (!isEmbeddedMode) {
-        const kanbanView = document.getElementById('kanban-view');
-        if (kanbanView) {
-            kanbanView.style.display = 'none';
-        }
+    const kanbanView = document.getElementById('kanban-view');
+    if (kanbanView) {
+        kanbanView.style.display = 'none';
+        // Remove instance when hiding
+        kanbanInstances.delete(kanbanView);
     }
-    currentProjectId = null;
-    boardData = { 'todo': [], 'doing': [], 'waiting': [], 'done': [] };
 };
 
 // Initialize Kanban board
 export async function initKanbanBoard(projectId) {
-    currentProjectId = projectId;
-    await loadBoardData();
-    renderBoard();
-    setupEventListeners();
+    // This is for backwards compatibility - create a temp instance
+    const tempContainer = document.createElement('div');
+    const instance = {
+        projectId: projectId,
+        container: tempContainer,
+        boardData: {
+            'todo': [],
+            'doing': [],
+            'waiting': [],
+            'done': []
+        },
+        isEmbeddedMode: false
+    };
+    
+    await loadBoardData(instance);
+    renderBoard(instance);
+    setupEventListeners(instance);
 }
 
 // Load all tasks and organize by status
-async function loadBoardData() {
+async function loadBoardData(instance) {
     try {
         showStatus('Loading board data...', false);
         
         // Get all tasks for the project
-        const tasks = await taskService.getTasksByProjectId(currentProjectId);
+        const tasks = await taskService.getTasksByProjectId(instance.projectId);
         
         // Initialize board data structure
-        boardData = {};
+        instance.boardData = {};
         BOARD_COLUMNS.forEach(column => {
-            boardData[column.id] = [];
+            instance.boardData[column.id] = [];
         });
         
         // Organize tasks by status (default to 'todo' if no status)
-        tasks.forEach(task => {
+        tasks.forEach((task, index) => {
+            console.log(`Task ${index}:`, {
+                id: task.id,
+                text: task.text,
+                title: task.title,
+                status: task.status,
+                projectId: task.projectId
+            });
+            
+            // Ensure task has correct project ID
+            task.projectId = instance.projectId;
+            
             const status = task.status || 'todo';
-            if (boardData[status]) {
-                boardData[status].push(task);
+            if (instance.boardData[status]) {
+                instance.boardData[status].push(task);
+                console.log(`Added task to ${status} column`);
             } else {
-                boardData['todo'].push(task); // Fallback to todo
+                console.log(`Unknown status ${status}, adding to todo`);
+                instance.boardData['todo'].push(task); // Fallback to todo
+                console.log('Added task to todo column');
             }
         });
         
@@ -246,10 +287,10 @@ async function loadBoardData() {
 }
 
 // Load tasks and render board
-async function loadTasksAndRender() {
-    console.log('loadTasksAndRender called with projectId:', currentProjectId);
+async function loadTasksAndRender(instance) {
+    console.log('loadTasksAndRender called with projectId:', instance.projectId);
     
-    if (!currentProjectId) {
+    if (!instance.projectId) {
         console.error('No project ID available for loading tasks');
         showStatus('Error: No project selected', true);
         return;
@@ -260,32 +301,32 @@ async function loadTasksAndRender() {
         console.log('Calling taskService.getTasksByProjectId...');
         
         // Try to fetch tasks with detailed logging
-        const tasks = await taskService.getTasksByProjectId(currentProjectId, null);
+        const tasks = await taskService.getTasksByProjectId(instance.projectId, null);
         console.log('Raw tasks received:', tasks);
         console.log('Number of tasks:', tasks ? tasks.length : 'null/undefined');
         
         // Initialize empty board data structure
-        boardData = {
+        instance.boardData = {
             'todo': [],
             'doing': [],
             'waiting': [],
             'done': []
         };
-        console.log('Initialized empty board data:', boardData);
+        console.log('Initialized empty board data:', instance.boardData);
         
         // Check if we actually got tasks
         if (!tasks || !Array.isArray(tasks)) {
             console.log('No tasks array received, using empty board');
-            renderBoard();
-            setupEventListeners();
+            renderBoard(instance);
+            setupEventListeners(instance);
             showStatus('No tasks found - you can add new ones using the + Add Card buttons', false);
             return;
         }
         
         if (tasks.length === 0) {
             console.log('Empty tasks array received');
-            renderBoard();
-            setupEventListeners();
+            renderBoard(instance);
+            setupEventListeners(instance);
             showStatus('No tasks found - you can add new ones using the + Add Card buttons', false);
             return;
         }
@@ -301,26 +342,30 @@ async function loadTasksAndRender() {
                 projectId: task.projectId
             });
             
+            // Ensure task has correct project ID
+            task.projectId = instance.projectId;
+            
             const status = task.status || 'todo';
-            if (boardData[status]) {
-                boardData[status].push(task);
+            if (instance.boardData[status]) {
+                instance.boardData[status].push(task);
                 console.log(`Added task to ${status} column`);
             } else {
                 console.log(`Unknown status ${status}, adding to todo`);
-                boardData['todo'].push(task); // Fallback to todo
+                instance.boardData['todo'].push(task); // Fallback to todo
+                console.log('Added task to todo column');
             }
         });
         
-        console.log('Final organized board data:', boardData);
+        console.log('Final organized board data:', instance.boardData);
         console.log('Board data summary:', {
-            todo: boardData.todo.length,
-            doing: boardData.doing.length,
-            waiting: boardData.waiting.length,
-            done: boardData.done.length
+            todo: instance.boardData.todo.length,
+            doing: instance.boardData.doing.length,
+            waiting: instance.boardData.waiting.length,
+            done: instance.boardData.done.length
         });
         
-        renderBoard();
-        setupEventListeners();
+        renderBoard(instance);
+        setupEventListeners(instance);
         showStatus(`Loaded ${tasks.length} tasks successfully`, false);
         
     } catch (error) {
@@ -332,24 +377,24 @@ async function loadTasksAndRender() {
         });
         
         // Initialize empty board even on error so the UI still works
-        boardData = {
+        instance.boardData = {
             'todo': [],
             'doing': [],
             'waiting': [],
             'done': []
         };
         
-        renderBoard();
-        setupEventListeners();
+        renderBoard(instance);
+        setupEventListeners(instance);
         showStatus('Error loading tasks: ' + (error.message || 'Unknown error') + ' - but you can still add new tasks', true);
     }
 }
 
 // Render the board
-function renderBoard() {
+function renderBoard(instance) {
     let boardContainer;
-    if (isEmbeddedMode) {
-        boardContainer = embeddedContainer;
+    if (instance.isEmbeddedMode) {
+        boardContainer = instance.container;
     } else {
         // For modal mode, look inside the kanban-container
         const kanbanView = document.getElementById('kanban-view');
@@ -361,11 +406,11 @@ function renderBoard() {
         return;
     }
     
-    Object.keys(boardData).forEach(status => {
+    Object.keys(instance.boardData).forEach(status => {
         const cardsContainer = boardContainer.querySelector(`.cards-container[data-status="${status}"]`);
         if (cardsContainer) {
             cardsContainer.innerHTML = '';
-            boardData[status].forEach(task => {
+            instance.boardData[status].forEach(task => {
                 const cardElement = document.createElement('div');
                 cardElement.innerHTML = renderCard(task);
                 cardsContainer.appendChild(cardElement.firstElementChild);
@@ -378,7 +423,7 @@ function renderBoard() {
 
 // Render a single column
 function renderColumn(column) {
-    const tasks = boardData[column.id] || [];
+    const tasks = instance.boardData[column.id] || [];
     
     return `
         <div class="kanban-column" data-status="${column.id}">
@@ -396,35 +441,32 @@ function renderColumn(column) {
 
 // Render a single card
 function renderCard(task) {
-    const title = task.title || task.text || 'Untitled'; // Support both title and text fields
-    const description = task.description || '';
-    const createdAt = task.created_at || task.createdAt || new Date().toISOString();
-    
     return `
-        <div class="kanban-card" data-task-id="${task.id}" draggable="true">
+        <div class="kanban-card" draggable="true" data-task-id="${task.id}" data-project-id="${task.projectId || 'unknown'}">
             <div class="card-header">
-                <span class="card-title">${title}</span>
+                <span class="card-title">${task.title || task.text || 'Untitled'}</span>
                 <div class="card-actions">
-                    <button class="edit-card-btn" data-task-id="${task.id}">✏️</button>
-                    <button class="delete-card-btn" data-task-id="${task.id}">🗑️</button>
+                    <button class="edit-card-btn" data-task-id="${task.id}" data-project-id="${task.projectId || 'unknown'}" title="Edit">✏️</button>
+                    <button class="delete-card-btn" data-task-id="${task.id}" data-project-id="${task.projectId || 'unknown'}" title="Delete">🗑️</button>
                 </div>
             </div>
-            ${description ? `<div class="card-description">${description}</div>` : ''}
+            ${task.description ? `<div class="card-description">${task.description}</div>` : ''}
             <div class="card-footer">
-                <span class="card-date">${formatDate(createdAt)}</span>
+                <span class="card-date">${formatDate(task.created_at)}</span>
             </div>
         </div>
     `;
 }
 
-// Add new card to a column
-async function addCard(status) {
-    console.log('addCard called with status:', status);
-    console.log('currentProjectId:', currentProjectId);
+// Add new card
+async function addCard(status, projectId) {
+    console.log('addCard called with status:', status, 'projectId:', projectId);
     
-    if (!currentProjectId) {
-        showStatus('Error: No project selected', true);
-        console.error('No project ID available for adding card');
+    // Find the correct instance for this project
+    const instance = findInstanceByProjectId(projectId);
+    if (!instance) {
+        console.error('No instance found for project:', projectId);
+        showStatus('Error: No project instance found', true);
         return;
     }
     
@@ -446,37 +488,37 @@ async function addCard(status) {
             description: description,
             completed: false,
             status: status,
-            position: boardData[status] ? boardData[status].length : 0
+            position: instance.boardData[status] ? instance.boardData[status].length : 0
         };
         
         console.log('Task data to create:', taskData);
         console.log('Calling taskService.createTask...');
         
-        const newTask = await taskService.createTask(currentProjectId, taskData);
+        const newTask = await taskService.createTask(instance.projectId, taskData);
         console.log('Task created successfully:', newTask);
         
         // Add to board data with fallback for missing status
         const taskStatus = newTask.status || status;
         console.log('Adding task to board with status:', taskStatus);
         
-        if (!boardData[taskStatus]) {
+        if (!instance.boardData[taskStatus]) {
             console.log('Creating new array for status:', taskStatus);
-            boardData[taskStatus] = [];
+            instance.boardData[taskStatus] = [];
         }
-        boardData[taskStatus].push(newTask);
+        instance.boardData[taskStatus].push(newTask);
         
-        console.log('Updated board data:', boardData);
+        console.log('Updated board data:', instance.boardData);
         console.log('Board data summary after add:', {
-            todo: boardData.todo.length,
-            doing: boardData.doing.length,
-            waiting: boardData.waiting.length,
-            done: boardData.done.length
+            todo: instance.boardData.todo.length,
+            doing: instance.boardData.doing.length,
+            waiting: instance.boardData.waiting.length,
+            done: instance.boardData.done.length
         });
         
         // Re-render the board
         console.log('Re-rendering board...');
-        renderBoard();
-        setupEventListeners();
+        renderBoard(instance);
+        setupEventListeners(instance);
         
         showStatus('Card created successfully', false);
     } catch (error) {
@@ -493,8 +535,15 @@ async function addCard(status) {
 }
 
 // Edit existing card
-async function editCard(taskId) {
-    const task = findTaskById(taskId);
+async function editCard(taskId, projectId) {
+    // Find the correct instance for this project
+    const instance = findInstanceByProjectId(projectId);
+    if (!instance) {
+        console.error('No instance found for project:', projectId);
+        return;
+    }
+    
+    const task = findTaskById(taskId, instance);
     if (!task) return;
     
     const currentTitle = task.title || task.text || '';
@@ -516,7 +565,7 @@ async function editCard(taskId) {
             description: newDescription
         };
         
-        await taskService.updateTask(currentProjectId, taskId, updateData);
+        await taskService.updateTask(instance.projectId, taskId, updateData);
         
         // Update board data
         task.text = newTitle;
@@ -524,8 +573,8 @@ async function editCard(taskId) {
         task.description = newDescription;
         
         // Re-render the board
-        renderBoard();
-        setupEventListeners();
+        renderBoard(instance);
+        setupEventListeners(instance);
         
         showStatus('Card updated successfully', false);
     } catch (error) {
@@ -535,7 +584,14 @@ async function editCard(taskId) {
 }
 
 // Delete card
-async function deleteCard(taskId) {
+async function deleteCard(taskId, projectId) {
+    // Find the correct instance for this project
+    const instance = findInstanceByProjectId(projectId);
+    if (!instance) {
+        console.error('No instance found for project:', projectId);
+        return;
+    }
+    
     if (!confirm('Are you sure you want to delete this card?')) {
         return;
     }
@@ -543,16 +599,16 @@ async function deleteCard(taskId) {
     try {
         showStatus('Deleting card...', false);
         
-        await taskService.deleteTask(currentProjectId, taskId);
+        await taskService.deleteTask(instance.projectId, taskId);
         
         // Remove from board data
         BOARD_COLUMNS.forEach(column => {
-            boardData[column.id] = boardData[column.id].filter(task => task.id !== taskId);
+            instance.boardData[column.id] = instance.boardData[column.id].filter(task => task.id !== taskId);
         });
         
         // Re-render the board
-        renderBoard();
-        setupEventListeners();
+        renderBoard(instance);
+        setupEventListeners(instance);
         
         showStatus('Card deleted successfully', false);
     } catch (error) {
@@ -562,10 +618,17 @@ async function deleteCard(taskId) {
 }
 
 // Move card to different column
-async function moveCard(taskId, newStatus) {
-    console.log('moveCard called with:', { taskId, newStatus, currentData: boardData });
+async function moveCard(taskId, newStatus, projectId) {
+    // Find the correct instance for this project
+    const instance = findInstanceByProjectId(projectId);
+    if (!instance) {
+        console.error('No instance found for project:', projectId);
+        return;
+    }
     
-    const task = findTaskById(taskId);
+    console.log('moveCard called with:', { taskId, newStatus, currentData: instance.boardData });
+    
+    const task = findTaskById(taskId, instance);
     if (!task) {
         console.error('Task not found:', taskId);
         return;
@@ -585,7 +648,7 @@ async function moveCard(taskId, newStatus) {
         console.log('Updating task with:', updateData);
         
         try {
-            await taskService.updateTask(currentProjectId, taskId, updateData);
+            await taskService.updateTask(instance.projectId, taskId, updateData);
             console.log('Status update successful');
         } catch (statusError) {
             console.log('Status column also missing, trying without status:', statusError);
@@ -593,7 +656,7 @@ async function moveCard(taskId, newStatus) {
             // If status column doesn't exist either, just update the UI
             if (statusError.message && statusError.message.includes('status')) {
                 console.log('Status column not found, updating UI only');
-                updateUIOnly(task, newStatus);
+                updateUIOnly(task, newStatus, instance);
                 return;
             } else {
                 throw statusError; // Re-throw if it's a different error
@@ -601,7 +664,7 @@ async function moveCard(taskId, newStatus) {
         }
         
         // Update board data after successful database update
-        updateUIOnly(task, newStatus);
+        updateUIOnly(task, newStatus, instance);
         
         showStatus('Card moved successfully', false);
         
@@ -611,7 +674,7 @@ async function moveCard(taskId, newStatus) {
         // Check if it's a column-missing error
         if (error.message && (error.message.includes('status') || error.message.includes('position'))) {
             console.log('Database columns missing, updating UI only');
-            updateUIOnly(task, newStatus);
+            updateUIOnly(task, newStatus, instance);
             showStatus('Card moved (UI only - database columns missing)', false);
         } else {
             showStatus('Error moving card: ' + (error.message || 'Unknown error'), true);
@@ -619,37 +682,49 @@ async function moveCard(taskId, newStatus) {
     }
 }
 
-// Helper function to update UI without database
-function updateUIOnly(task, newStatus) {
+// Helper function to update UI without database changes
+function updateUIOnly(task, newStatus, instance) {
+    console.log('updateUIOnly called with:', { task, newStatus });
+    
     const oldStatus = task.status || 'todo';
-    console.log('Moving from', oldStatus, 'to', newStatus, '(UI only)');
+    console.log('Moving from', oldStatus, 'to', newStatus);
     
     // Remove from old column
-    if (boardData[oldStatus]) {
-        boardData[oldStatus] = boardData[oldStatus].filter(t => t.id !== task.id);
+    if (instance.boardData[oldStatus]) {
+        instance.boardData[oldStatus] = instance.boardData[oldStatus].filter(t => t.id !== task.id);
     }
     
     // Add to new column
     task.status = newStatus;
-    if (!boardData[newStatus]) {
-        boardData[newStatus] = [];
+    if (!instance.boardData[newStatus]) {
+        instance.boardData[newStatus] = [];
     }
-    boardData[newStatus].push(task);
+    instance.boardData[newStatus].push(task);
     
-    console.log('Updated board data:', boardData);
+    console.log('Updated board data:', instance.boardData);
     
     // Re-render the board
-    renderBoard();
-    setupEventListeners();
+    renderBoard(instance);
+    setupEventListeners(instance);
+}
+
+// Helper function to find instance by project ID
+function findInstanceByProjectId(projectId) {
+    for (const [container, instance] of kanbanInstances) {
+        if (instance.projectId === projectId) {
+            return instance;
+        }
+    }
+    return null;
 }
 
 // Setup event listeners
-function setupEventListeners() {
-    console.log('setupEventListeners called, isEmbeddedMode:', isEmbeddedMode);
+function setupEventListeners(instance) {
+    console.log('setupEventListeners called, isEmbeddedMode:', instance.isEmbeddedMode);
     
     let boardContainer;
-    if (isEmbeddedMode) {
-        boardContainer = embeddedContainer;
+    if (instance.isEmbeddedMode) {
+        boardContainer = instance.container;
     } else {
         // For modal mode, look inside the kanban-container
         const kanbanView = document.getElementById('kanban-view');
@@ -741,7 +816,7 @@ function handleBoardClick(e) {
         e.stopPropagation();
         const status = e.target.dataset.status;
         console.log('Add card button clicked for status:', status);
-        addCard(status);
+        addCard(status, e.target.dataset.projectId);
         return;
     }
     
@@ -751,7 +826,7 @@ function handleBoardClick(e) {
         e.stopPropagation();
         const taskId = e.target.dataset.taskId;
         console.log('Edit card button clicked for task:', taskId);
-        editCard(taskId);
+        editCard(taskId, e.target.dataset.projectId);
         return;
     }
     
@@ -761,7 +836,7 @@ function handleBoardClick(e) {
         e.stopPropagation();
         const taskId = e.target.dataset.taskId;
         console.log('Delete card button clicked for task:', taskId);
-        deleteCard(taskId);
+        deleteCard(taskId, e.target.dataset.projectId);
         return;
     }
     
@@ -769,12 +844,12 @@ function handleBoardClick(e) {
 }
 
 // Helper functions
-function findTaskById(taskId) {
-    console.log('Finding task by ID:', taskId, 'in data:', boardData);
+function findTaskById(taskId, instance) {
+    console.log('Finding task by ID:', taskId, 'in data:', instance.boardData);
     
     // Handle both string and number IDs - but don't convert UUIDs to numbers
-    for (const columnId of Object.keys(boardData)) {
-        const task = boardData[columnId].find(t => {
+    for (const columnId of Object.keys(instance.boardData)) {
+        const task = instance.boardData[columnId].find(t => {
             // Compare as strings first, then try numeric comparison if both are numbers
             if (t.id === taskId) return true;
             
@@ -812,7 +887,7 @@ export const kanbanBoard = {
 window.testKanbanDragDrop = function() {
     console.log('=== TESTING KANBAN DRAG AND DROP ===');
     
-    const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
+    const boardContainer = instance.isEmbeddedMode ? instance.container : document.getElementById('kanban-view');
     console.log('Board container:', boardContainer);
     
     if (!boardContainer) {
@@ -842,9 +917,9 @@ window.testKanbanDragDrop = function() {
         });
     });
     
-    console.log('Current board data:', boardData);
+    console.log('Current board data:', instance.boardData);
     console.log('Current project ID:', currentProjectId);
-    console.log('Is embedded mode:', isEmbeddedMode);
+    console.log('Is embedded mode:', instance.isEmbeddedMode);
     
     // Try to manually trigger drag and drop
     if (cards.length > 0) {
@@ -896,21 +971,30 @@ function handleDragLeave(e) {
 
 function handleDrop(e) {
     e.preventDefault();
-    e.target.classList.remove('drag-over');
+    e.stopPropagation();
     
-    if (draggedCard) {
-        const taskId = draggedCard.dataset.taskId;
-        const newStatus = e.target.dataset.status;
+    const taskId = e.dataTransfer.getData('text/plain');
+    const newStatus = e.currentTarget.dataset.status;
+    
+    console.log('Drop event:', { taskId, newStatus, target: e.currentTarget });
+    
+    if (taskId && newStatus) {
+        // Find the project ID from the dragged card
+        const draggedCard = document.querySelector(`[data-task-id="${taskId}"]`);
+        const projectId = draggedCard ? draggedCard.dataset.projectId : null;
         
-        console.log('Drop event:', { taskId, newStatus, draggedCard, target: e.target });
-        
-        if (taskId && newStatus) {
+        if (projectId) {
             // Don't convert UUID strings to numbers - keep as string
-            moveCard(taskId, newStatus);
+            moveCard(taskId, newStatus, projectId);
         } else {
-            console.error('Missing taskId or newStatus:', { taskId, newStatus });
+            console.error('No project ID found for dropped card');
         }
+    } else {
+        console.error('Missing taskId or newStatus:', { taskId, newStatus });
     }
+    
+    // Remove visual feedback
+    e.currentTarget.classList.remove('drag-over');
 }
 
 // Debug function to test database connection and task loading
@@ -961,7 +1045,7 @@ window.debugKanbanDatabase = async function() {
         
         // Test 6: Check if add button event listeners are working
         console.log('Test 6: Checking add button event listeners...');
-        const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
+        const boardContainer = instance.isEmbeddedMode ? instance.container : document.getElementById('kanban-view');
         if (boardContainer) {
             const addButtons = boardContainer.querySelectorAll('.add-card-btn');
             console.log('Found add buttons:', addButtons.length);
@@ -991,7 +1075,7 @@ window.debugKanbanDatabase = async function() {
 window.testAddCardButtons = function() {
     console.log('=== TESTING ADD CARD BUTTONS ===');
     
-    const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
+    const boardContainer = instance.isEmbeddedMode ? instance.container : document.getElementById('kanban-view');
     if (!boardContainer) {
         console.error('No board container found');
         return;
@@ -1021,7 +1105,7 @@ window.testAddCardButtons = function() {
     });
     
     console.log('Current project ID:', currentProjectId);
-    console.log('Board data:', boardData);
+    console.log('Board data:', instance.boardData);
     
     console.log('=== END ADD CARD BUTTON TEST ===');
 };
@@ -1036,7 +1120,7 @@ window.refreshKanbanBoard = function() {
     }
     
     console.log('Refreshing board for project:', currentProjectId);
-    loadTasksAndRender();
+    loadTasksAndRender(instance);
     
     console.log('=== KANBAN BOARD REFRESHED ===');
 };
@@ -1046,11 +1130,11 @@ window.debugKanbanDOM = function() {
     console.log('=== KANBAN DOM DEBUG ===');
     
     console.log('Current project ID:', currentProjectId);
-    console.log('Is embedded mode:', isEmbeddedMode);
-    console.log('Embedded container:', embeddedContainer);
+    console.log('Is embedded mode:', instance.isEmbeddedMode);
+    console.log('Embedded container:', instance.container);
     
     // Check board container
-    const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
+    const boardContainer = instance.isEmbeddedMode ? instance.container : document.getElementById('kanban-view');
     console.log('Board container:', boardContainer);
     
     if (!boardContainer) {
@@ -1103,12 +1187,12 @@ window.debugKanbanDOM = function() {
     }
     
     // Check current board data
-    console.log('Current board data:', boardData);
+    console.log('Current board data:', instance.boardData);
     console.log('Board data summary:', {
-        todo: boardData.todo ? boardData.todo.length : 'undefined',
-        doing: boardData.doing ? boardData.doing.length : 'undefined', 
-        waiting: boardData.waiting ? boardData.waiting.length : 'undefined',
-        done: boardData.done ? boardData.done.length : 'undefined'
+        todo: instance.boardData.todo ? instance.boardData.todo.length : 'undefined',
+        doing: instance.boardData.doing ? instance.boardData.doing.length : 'undefined', 
+        waiting: instance.boardData.waiting ? instance.boardData.waiting.length : 'undefined',
+        done: instance.boardData.done ? instance.boardData.done.length : 'undefined'
     });
     
     // Check CSS styles
@@ -1135,9 +1219,9 @@ window.testRenderBoard = function() {
         return;
     }
     
-    console.log('Current board data before render:', boardData);
+    console.log('Current board data before render:', instance.boardData);
     
-    const boardContainer = isEmbeddedMode ? embeddedContainer : document.getElementById('kanban-view');
+    const boardContainer = instance.isEmbeddedMode ? instance.container : document.getElementById('kanban-view');
     if (!boardContainer) {
         console.error('No board container found');
         return;
@@ -1146,8 +1230,8 @@ window.testRenderBoard = function() {
     console.log('Board container found:', boardContainer);
     
     // Manual render each status
-    Object.keys(boardData).forEach(status => {
-        console.log(`Rendering status: ${status} with ${boardData[status].length} tasks`);
+    Object.keys(instance.boardData).forEach(status => {
+        console.log(`Rendering status: ${status} with ${instance.boardData[status].length} tasks`);
         
         const cardsContainer = boardContainer.querySelector(`.cards-container[data-status="${status}"]`);
         console.log(`Cards container for ${status}:`, cardsContainer);
@@ -1157,7 +1241,7 @@ window.testRenderBoard = function() {
             cardsContainer.innerHTML = '';
             console.log(`After clear - container has ${cardsContainer.children.length} children`);
             
-            boardData[status].forEach((task, index) => {
+            instance.boardData[status].forEach((task, index) => {
                 console.log(`Rendering task ${index}:`, task);
                 
                 const cardHTML = renderCard(task);
@@ -1183,9 +1267,9 @@ window.testRenderBoard = function() {
 window.debugKanbanComplete = function() {
     console.log('=== COMPLETE KANBAN DEBUG ===');
     console.log('1. Current state:');
-    console.log('   - isEmbeddedMode:', isEmbeddedMode);
+    console.log('   - isEmbeddedMode:', instance.isEmbeddedMode);
     console.log('   - currentProjectId:', currentProjectId);
-    console.log('   - boardData:', boardData);
+    console.log('   - boardData:', instance.boardData);
     
     console.log('2. DOM elements:');
     const kanbanView = document.getElementById('kanban-view');
@@ -1323,7 +1407,7 @@ window.testKanbanFlow = async function(projectId) {
     
     console.log('4. Checking final state...');
     console.log('   - currentProjectId:', currentProjectId);
-    console.log('   - boardData:', boardData);
+    console.log('   - boardData:', instance.boardData);
     
     const finalCards = board.querySelectorAll('.kanban-card');
     console.log('   - cards rendered:', finalCards.length);
@@ -1391,9 +1475,9 @@ window.forceTestKanban = function() {
             board: !!board,
             buttons: buttons.length,
             cards: cards.length,
-            boardData: boardData,
+            boardData: instance.boardData,
             currentProjectId: currentProjectId,
-            isEmbeddedMode: isEmbeddedMode
+            isEmbeddedMode: instance.isEmbeddedMode
         });
         
         if (buttons.length > 0) {
@@ -1420,4 +1504,104 @@ window.forceTestKanban = function() {
         testContainer.appendChild(closeBtn);
         
     }, 3000);
+};
+
+// Debug function to compare real UI vs test environment
+window.debugRealKanbanUI = function() {
+    console.log('=== DEBUGGING REAL KANBAN UI ===');
+    
+    // Check if we're in embedded mode and what container we're using
+    console.log('1. Current state:');
+    console.log('   - isEmbeddedMode:', instance.isEmbeddedMode);
+    console.log('   - embeddedContainer:', instance.container);
+    console.log('   - currentProjectId:', currentProjectId);
+    
+    // Find any kanban boards in the real UI
+    console.log('2. Looking for Kanban boards in the DOM...');
+    const allKanbanBoards = document.querySelectorAll('.kanban-board');
+    console.log('   - Found kanban boards:', allKanbanBoards.length);
+    
+    allKanbanBoards.forEach((board, index) => {
+        console.log(`   Board ${index}:`, {
+            element: board,
+            parent: board.parentElement,
+            visible: board.offsetParent !== null,
+            style: board.style.cssText,
+            computedStyle: window.getComputedStyle(board).display
+        });
+        
+        // Check buttons in this board
+        const buttons = board.querySelectorAll('.add-card-btn');
+        console.log(`   Board ${index} buttons:`, buttons.length);
+        buttons.forEach((btn, btnIndex) => {
+            console.log(`     Button ${btnIndex}:`, {
+                element: btn,
+                visible: btn.offsetParent !== null,
+                style: btn.style.cssText,
+                computedStyle: window.getComputedStyle(btn).display,
+                hasEventListener: btn.hasAttribute('data-listener-attached') || btn.dataset.listenerAttached
+            });
+        });
+    });
+    
+    // Check for any overlapping elements that might block clicks
+    console.log('3. Checking for potential click blockers...');
+    const buttons = document.querySelectorAll('.add-card-btn');
+    buttons.forEach((btn, index) => {
+        const rect = btn.getBoundingClientRect();
+        const elementAtCenter = document.elementFromPoint(
+            rect.left + rect.width / 2,
+            rect.top + rect.height / 2
+        );
+        console.log(`   Button ${index} click test:`, {
+            button: btn,
+            boundingRect: rect,
+            elementAtCenter: elementAtCenter,
+            isClickable: elementAtCenter === btn || btn.contains(elementAtCenter)
+        });
+    });
+    
+    // Check for CSS issues
+    console.log('4. CSS Analysis...');
+    const kanbanContainers = document.querySelectorAll('[class*="kanban"]');
+    kanbanContainers.forEach((container, index) => {
+        const styles = window.getComputedStyle(container);
+        console.log(`   Container ${index}:`, {
+            element: container,
+            zIndex: styles.zIndex,
+            position: styles.position,
+            pointerEvents: styles.pointerEvents,
+            overflow: styles.overflow
+        });
+    });
+};
+
+// Manual button test for real UI
+window.testRealButtons = function() {
+    console.log('=== TESTING REAL UI BUTTONS ===');
+    
+    const buttons = document.querySelectorAll('.add-card-btn');
+    console.log('Found buttons:', buttons.length);
+    
+    if (buttons.length === 0) {
+        console.log('❌ No buttons found! Kanban might not be initialized.');
+        return;
+    }
+    
+    buttons.forEach((btn, index) => {
+        console.log(`Testing button ${index}:`, btn);
+        console.log('  - Text:', btn.textContent);
+        console.log('  - Status:', btn.dataset.status);
+        console.log('  - Visible:', btn.offsetParent !== null);
+        console.log('  - Parent:', btn.parentElement);
+        
+        // Try to click it
+        console.log('  - Attempting click...');
+        try {
+            btn.click();
+            console.log('  ✅ Click successful');
+        } catch (error) {
+            console.log('  ❌ Click failed:', error);
+        }
+    });
 }; 
