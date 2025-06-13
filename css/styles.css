@@ -1446,16 +1446,54 @@ h2 { margin-bottom: 15px; }
     color: #adb5bd;
 }
 
-/* Drag and drop feedback */
+/* Drag and drop feedback - moved below */
+
+.kanban-card.dragging {
+    opacity: 0.5 !important;
+    transform: rotate(2deg) !important;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3) !important;
+    transition: none !important;
+    z-index: 1000 !important;
+    /* DO NOT use position: absolute - it breaks drag functionality */
+}
+
+/* Visual feedback for successful drop */
+.kanban-card.drop-success {
+    animation: dropSuccess 0.3s ease-out;
+}
+
+@keyframes dropSuccess {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 4px 8px rgba(0,255,0,0.3);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+}
+
+/* Better hover state for draggable cards */
+.kanban-card[draggable="true"] {
+    cursor: grab;
+}
+
+.kanban-card[draggable="true"]:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+/* Enhanced drop zone feedback */
 .cards-container.drag-over {
     background-color: #e3f2fd;
     border: 2px dashed #2196f3;
     border-radius: 6px;
-}
-
-.kanban-card.dragging {
-    opacity: 0.5;
-    transform: rotate(5deg);
+    min-height: 50px;
+    transition: all 0.2s ease;
 }
 
 /* Kanban Column Header Colors */
@@ -1568,4 +1606,83 @@ h2 { margin-bottom: 15px; }
     background-color: rgba(0,0,0,0.25) !important;
     color: #212529 !important;
     transform: none !important;
+}
+
+/* Card move success animation */
+@keyframes cardMoveSuccess {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+}
+
+.kanban-card.drop-success {
+    animation: cardMoveSuccess 0.3s ease-out;
+}
+
+/* Stable drag and drop zones - prevent jumping */
+.cards-container {
+    min-height: 100px;
+    transition: none !important; /* Disable transitions during drag */
+    position: relative;
+}
+
+/* When dragging is active, stabilize all containers */
+.kanban-board.dragging-active .cards-container {
+    min-height: 150px !important; /* Increased minimum height */
+    border: 2px dashed #ccc;
+    background-color: rgba(0, 0, 0, 0.02);
+    transition: none !important;
+}
+
+/* Drag over state - more stable */
+.cards-container.drag-over {
+    min-height: 150px !important;
+    border: 2px dashed #2196f3 !important;
+    background-color: rgba(33, 150, 243, 0.1) !important;
+    transition: none !important;
+    transform: none !important; /* Prevent any transforms */
+}
+
+/* Removed - this was breaking drag functionality */
+
+/* Stabilize column headers */
+.column-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: white;
+    border-bottom: 1px solid #eee;
+    padding: 10px;
+}
+
+/* Prevent hover effects during drag */
+.kanban-board.dragging-active .kanban-card:not(.dragging):hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Ensure consistent spacing */
+.kanban-column {
+    flex: 1;
+    min-width: 250px;
+    margin: 0 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Fixed card dimensions to prevent layout shifts */
+.kanban-card {
+    min-height: 80px;
+    margin-bottom: 10px;
+    box-sizing: border-box;
+    width: 100%;
 } 
