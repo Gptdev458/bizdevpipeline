@@ -1,4 +1,4 @@
-// Supabase configuration file
+ // Supabase configuration file
 // This script initializes the Supabase client and provides helper functions for database operations
 
 // Supabase project URL and anon key (replace with your own)
@@ -87,6 +87,7 @@ async function initSupabase() {
                 return false;
             }
             
+            // Create client without additional options
             supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             
             if (!supabase) {
@@ -253,18 +254,29 @@ async function updateData(table, id, data) {
         // Convert data from camelCase to snake_case
         const snakeCaseData = camelToSnakeCase(data);
         
+        // Update data in the database
         const { data: result, error } = await supabase
             .from(table)
             .update(snakeCaseData)
             .eq('id', id)
             .select();
         
-        if (error) throw error;
+        if (error) {
+            console.error(`Update error for table ${table}:`, error);
+            throw error;
+        }
+        
+        if (!result || result.length === 0) {
+            console.warn(`Update succeeded but no data returned from table ${table}`);
+            return null;
+        }
         
         // Convert result from snake_case to camelCase
-        return result && result[0] ? snakeToCamelCase(result[0]) : null;
+        const camelCaseResult = snakeToCamelCase(result[0]);
+        
+        return camelCaseResult;
     } catch (error) {
-        console.error(`Error updating data in ${table}:`, error);
+        console.error(`Error updating data in ${table} with id ${id}:`, error);
         throw error;
     }
 }
@@ -278,15 +290,51 @@ async function deleteData(table, id) {
             throw new Error('Supabase client not initialized');
         }
         
-        const { error } = await supabase
+        // First, check if the record exists
+        const { data: existingRecord, error: checkError } = await supabase
+            .from(table)
+            .select('id')
+            .eq('id', id)
+            .single();
+            
+        if (checkError && checkError.code !== 'PGRST116') {
+            console.error(`Error checking record existence for ${table}:`, checkError);
+            throw checkError;
+        }
+        
+        if (!existingRecord) {
+            console.warn(`Record with id ${id} not found in table ${table}`);
+            throw new Error(`Record with id ${id} not found in table ${table}`);
+        }
+        
+        console.log(`Record exists, proceeding with delete for ${table} id ${id}`);
+        
+        // Delete data from the database and return the deleted record
+        const { data: deletedData, error } = await supabase
             .from(table)
             .delete()
-            .eq('id', id);
+            .eq('id', id)
+            .select();
         
-        if (error) throw error;
-        return true;
+        if (error) {
+            console.error(`Delete error for table ${table}:`, error);
+            throw error;
+        }
+        
+        if (!deletedData || deletedData.length === 0) {
+            console.error(`Delete operation completed but no records were deleted from ${table} with id ${id}`);
+            throw new Error(`Failed to delete record from ${table} with id ${id} - no records affected`);
+        }
+        
+        console.log(`Successfully deleted ${deletedData.length} record(s) from ${table}:`, deletedData);
+        
+        return {
+            success: true,
+            deletedCount: deletedData.length,
+            deletedRecord: deletedData[0]
+        };
     } catch (error) {
-        console.error(`Error deleting data from ${table}:`, error);
+        console.error(`Error deleting data from ${table} with id ${id}:`, error);
         throw error;
     }
 }

@@ -461,7 +461,48 @@ h2 { margin-bottom: 15px; }
 
 /* Modal */
 .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
-.modal-content { background-color: #fff; margin: 10% auto; padding: 25px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 6px; position: relative; }
+.modal-content { background-color: #fff; margin: 10% auto; padding: 25px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 6px; position: relative; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+
+/* Add Card Modal specific styling */
+#addCardModal .modal-content {
+    max-width: 500px;
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+#addCardModal #cardTitle {
+    font-size: 14px;
+}
+
+#addCardModal #cardDescription {
+    font-size: 14px;
+    resize: vertical;
+}
+
+/* Edit Card Modal specific styling */
+#editCardModal .modal-content {
+    max-width: 500px;
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+#editCardModal #editCardTitle {
+    font-size: 14px;
+}
+
+#editCardModal #editCardDescription {
+    font-size: 14px;
+    resize: vertical;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--medium-gray);}
 .close-btn { color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; }
 .close-btn:hover, .close-btn:focus { color: black; text-decoration: none; }
@@ -1129,7 +1170,7 @@ h2 { margin-bottom: 15px; }
 .kanban-board {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 20px;
+    gap: 15px;
     min-height: 500px;
 }
 
@@ -1319,14 +1360,14 @@ h2 { margin-bottom: 15px; }
 
 .embedded-kanban-container .kanban-board {
     display: flex;
-    gap: 15px;
+    gap: 10px;
     overflow-x: auto;
     padding: 10px 0;
     min-height: 400px;
 }
 
 .embedded-kanban-container .kanban-column {
-    min-width: 250px;
+    min-width: 180px;
     flex: 1;
     background: #f8f9fa;
     border-radius: 8px;
@@ -1673,8 +1714,8 @@ h2 { margin-bottom: 15px; }
 /* Ensure consistent spacing */
 .kanban-column {
     flex: 1;
-    min-width: 250px;
-    margin: 0 10px;
+    min-width: 180px;
+    margin: 0 5px;
     display: flex;
     flex-direction: column;
 }

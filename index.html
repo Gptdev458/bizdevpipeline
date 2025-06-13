@@ -139,6 +139,54 @@
         </div>
     </div>
 
+    <!-- Add Card Modal -->
+    <div id="addCardModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="addCardModalTitle">Add New Card</h2>
+                <span class="close-btn" id="closeAddCardModal">&times;</span>
+            </div>
+            <form id="addCardForm">
+                <div class="form-group">
+                    <label for="cardTitle">Title *</label>
+                    <input type="text" id="cardTitle" name="cardTitle" required placeholder="Enter card title">
+                </div>
+                <div class="form-group">
+                    <label for="cardDescription">Description</label>
+                    <textarea id="cardDescription" name="cardDescription" placeholder="Enter card description (optional)" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Add Card</button>
+                    <button type="button" class="btn btn-secondary" id="cancelAddCard">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Card Modal -->
+    <div id="editCardModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Card</h2>
+                <span class="close-btn" id="closeEditCardModal">&times;</span>
+            </div>
+            <form id="editCardForm">
+                <div class="form-group">
+                    <label for="editCardTitle">Title *</label>
+                    <input type="text" id="editCardTitle" name="editCardTitle" required placeholder="Enter card title">
+                </div>
+                <div class="form-group">
+                    <label for="editCardDescription">Description</label>
+                    <textarea id="editCardDescription" name="editCardDescription" placeholder="Enter card description (optional)" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Update Card</button>
+                    <button type="button" class="btn btn-secondary" id="cancelEditCard">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Add Project Modal -->
     <div id="addProjectModal" class="modal">
         <div class="modal-content">
